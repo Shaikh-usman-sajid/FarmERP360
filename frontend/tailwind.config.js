@@ -8,23 +8,40 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#f0fdf4',
-          100: '#dcfce7',
-          200: '#bbf7d0',
-          300: '#86efac',
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',
-          700: '#15803d',
-          800: '#166534',
-          900: '#14532d',
+        // Override the entire green scale with the FarmERP360 palette
+        green: {
+          50:  '#FDF6E3',  // warm cream — light tints, hover backgrounds
+          100: '#F5EDD6',  // deeper cream — badge bg, active tints
+          200: '#E5D9BF',  // warm tan — borders, dividers
+          300: '#B8A07A',  // muted gold-green
+          400: '#6B9E7A',  // medium-light green
+          500: '#2D6A4F',  // medium green — focus rings
+          600: '#2D6A4F',  // primary action — buttons, icons
+          700: '#1B4332',  // hover / darker
+          800: '#1B4332',  // active text
+          900: '#122B20',  // darkest
         },
+        // Amber stays for warnings; gold is our accent
+        gold: {
+          50:  '#FDF8EC',
+          100: '#FAF0D0',
+          200: '#F4E3A8',
+          300: '#EDD478',
+          400: '#E2C558',
+          500: '#C9A84C',  // main gold accent
+          600: '#B8943A',
+          700: '#9A7A2D',
+          800: '#7A5F22',
+          900: '#5A4518',
+        },
+        // Semantic aliases
         farm: {
-          green: '#16a34a',
-          blue: '#1d4ed8',
-          amber: '#d97706',
-        }
+          dark:   '#1B4332',
+          green:  '#2D6A4F',
+          gold:   '#C9A84C',
+          cream:  '#FDF6E3',
+          cream2: '#F5EDD6',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],

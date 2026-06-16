@@ -38,23 +38,27 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-emerald-50 flex">
-      {/* Left Panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-green-700 to-green-900 flex-col justify-between p-12">
+    <div className="min-h-screen flex" style={{ backgroundColor: '#FDF6E3' }}>
+      {/* Left Panel — dark green brand panel */}
+      <div
+        className="hidden lg:flex lg:w-1/2 flex-col justify-between p-12"
+        style={{ backgroundColor: '#1B4332' }}
+      >
         <div>
           <div className="flex items-center gap-3 mb-12">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#C9A84C' }}>
               <span className="text-2xl">🌿</span>
             </div>
             <div>
               <h1 className="text-white text-2xl font-bold">FarmERP360</h1>
-              <p className="text-green-200 text-sm">Enterprise Livestock ERP</p>
+              <p className="text-sm" style={{ color: 'rgba(201,168,76,0.8)' }}>Enterprise Livestock ERP</p>
             </div>
           </div>
+
           <h2 className="text-white text-4xl font-bold mb-4 leading-tight">
             Manage Your Farm<br />Smarter, Faster.
           </h2>
-          <p className="text-green-200 text-lg">
+          <p className="text-lg" style={{ color: 'rgba(255,255,255,0.65)' }}>
             Complete livestock, dairy, agriculture, and investor management in one platform.
           </p>
         </div>
@@ -66,27 +70,30 @@ export default function LoginPage() {
             { icon: '📊', label: 'Investor Portal', desc: 'Transparency & ROI' },
             { icon: '🌾', label: 'Agriculture', desc: 'Field & crop management' },
           ].map(item => (
-            <div key={item.label} className="bg-green-800 bg-opacity-50 rounded-xl p-4">
+            <div key={item.label} className="rounded-xl p-4" style={{ backgroundColor: 'rgba(45,106,79,0.6)', border: '1px solid rgba(201,168,76,0.2)' }}>
               <div className="text-2xl mb-2">{item.icon}</div>
               <div className="text-white font-semibold text-sm">{item.label}</div>
-              <div className="text-green-300 text-xs">{item.desc}</div>
+              <div className="text-xs" style={{ color: 'rgba(201,168,76,0.75)' }}>{item.desc}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Right Panel */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      {/* Right Panel — login form */}
+      <div className="flex-1 flex items-center justify-center p-8" style={{ backgroundColor: '#FDF6E3' }}>
         <div className="w-full max-w-md">
+          {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8">
-            <span className="text-3xl">🌿</span>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#1B4332' }}>
+              <span className="text-xl">🌿</span>
+            </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">FarmERP360</h1>
+              <h1 className="text-xl font-bold" style={{ color: '#1B4332' }}>FarmERP360</h1>
               <p className="text-gray-500 text-sm">Enterprise Livestock ERP</p>
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Sign in to your account</h2>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: '#1B4332' }}>Sign in to your account</h2>
           <p className="text-gray-500 text-sm mb-8">Enter your credentials to access the platform</p>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -118,15 +125,20 @@ export default function LoginPage() {
                 </button>
               </div>
             </div>
-            <button type="submit" disabled={loading}
-              className="w-full btn-primary py-2.5 text-base font-semibold disabled:opacity-60 disabled:cursor-not-allowed">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full btn-primary py-2.5 text-base font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+            >
               {loading ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
 
           {/* Demo Credentials */}
-          <div className="mt-8 p-4 bg-gray-50 rounded-xl border border-gray-200">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Demo Accounts — Click to Fill</p>
+          <div className="mt-8 p-4 rounded-xl" style={{ backgroundColor: '#F5EDD6', border: '1px solid #E5D9BF' }}>
+            <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: '#1B4332' }}>
+              Demo Accounts — Click to Sign In
+            </p>
             <div className="grid grid-cols-2 gap-2">
               {[
                 { label: '👑 Owner', email: 'owner@farmerp360.com', pass: 'Owner123!@#' },
@@ -138,9 +150,19 @@ export default function LoginPage() {
               ].map(d => (
                 <button key={d.email} type="button"
                   onClick={() => demoLogin(d.email, d.pass)}
-                  className="text-left text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 hover:border-green-400 hover:bg-green-50 transition-colors">
-                  <div className="font-semibold text-gray-800">{d.label}</div>
-                  <div className="text-gray-400 truncate">{d.email}</div>
+                  className="text-left text-xs rounded-lg px-3 py-2 transition-colors"
+                  style={{ backgroundColor: '#ffffff', border: '1px solid #E5D9BF', color: '#1B4332' }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.borderColor = '#C9A84C'
+                    e.currentTarget.style.backgroundColor = '#FDF6E3'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.borderColor = '#E5D9BF'
+                    e.currentTarget.style.backgroundColor = '#ffffff'
+                  }}
+                >
+                  <div className="font-semibold">{d.label}</div>
+                  <div className="truncate" style={{ color: '#6b7280' }}>{d.email}</div>
                 </button>
               ))}
             </div>
