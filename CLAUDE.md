@@ -33,7 +33,7 @@ Access: http://216.73.188.187:3000 (or http://localhost)
 ### Backend
 ```
 backend/app/
-  main.py                    # FastAPI app, CORS, router registration
+  main.py                    # FastAPI app, CORS, router registration (17 routers)
   core/
     config.py                # Settings (env-based, pydantic-settings)
     database.py              # SQLAlchemy engine + session
@@ -45,21 +45,30 @@ backend/app/
     auth.py                  # login, refresh, logout, change-password
     users.py                 # user CRUD
     animals.py               # animal CRUD, photo upload, weight tracking
-    health.py                # vaccinations, treatments, breeding
+    health.py                # vaccinations, treatments, breeding records
     dairy.py                 # milk production, sales, daily summary
     inventory.py             # products, stock transactions
+    feed.py                  # feed types, stock IN/OUT, daily consumption
     agriculture.py           # fields, crop cycles, harvests
     employees.py             # employee CRUD, attendance
-    business.py              # investors, pallai, invoices, payments
-    dashboard.py             # role dashboards, reports, audit logs
-  seed.py                    # idempotent demo data (420 lines)
+    tasks.py                 # task assign, start, complete, cancel
+    business.py              # invoices, payments
+    investors.py             # investor CRUD, capital, distributions, portfolio
+    pallai.py                # customers, packages, subscriptions, billing, portal
+    accounting.py            # chart of accounts, journal entries, ledger, payroll,
+                             #   P&L, balance sheet, cash flow, AR/AP, cost centers
+    analytics.py             # 8-tab analytics: milk, cash flow, farm health, profitability,
+                             #   inventory, investors, pallai
+    forecasting.py           # feed, cash flow, crop yield forecasting engines
+    dashboard.py             # role dashboards (owner/farm/accounting/investor), notifications
+  seed.py                    # idempotent demo data
   init_db.py                 # create tables on startup
 ```
 
 ### Frontend
 ```
 frontend/src/
-  app/                       # Next.js App Router pages
+  app/                       # Next.js App Router pages (37 pages)
     layout.tsx               # Root layout (QueryClientProvider, Toaster)
     page.tsx                 # Root redirect (/ → /dashboard or /login)
     login/page.tsx           # Login page with demo credential buttons
@@ -69,20 +78,40 @@ frontend/src/
     vaccination/page.tsx
     treatments/page.tsx
     inventory/page.tsx
+    feed/page.tsx
     agriculture/page.tsx
     employees/page.tsx
     attendance/page.tsx
+    tasks/page.tsx
     investors/page.tsx
+    investors/portal/page.tsx    # Investor self-service portal
     pallai/page.tsx
+    pallai/portal/page.tsx       # Pallai customer self-service portal
+    pallai/animal-gallery/page.tsx
+    pallai/ledger/page.tsx
+    pallai/reports/page.tsx
     invoices/page.tsx
     payments/page.tsx
-    reports/page.tsx
+    reports/page.tsx             # 8-tab analytics dashboard
+    forecasting/page.tsx         # Feed, Cash Flow, Crop Yield tabs
+    accounting/chart-of-accounts/page.tsx
+    accounting/journal-entries/page.tsx
+    accounting/ledger/page.tsx
+    accounting/trial-balance/page.tsx
+    accounting/vendors/page.tsx
+    accounting/bills/page.tsx
+    accounting/payroll/page.tsx
+    accounting/profit-loss/page.tsx
+    accounting/balance-sheet/page.tsx
+    accounting/cash-flow/page.tsx
+    accounting/receivables/page.tsx
     users/page.tsx
+    help/page.tsx
   components/layout/
     DashboardLayout.tsx      # Wraps all protected pages with AuthGuard + Sidebar
-    Sidebar.tsx              # Role-based nav, 15 links
+    Sidebar.tsx              # Role-based nav, 35+ links with section dividers
     AuthGuard.tsx            # Redirects to /login if not authenticated
-  lib/api.ts                 # Axios client (baseURL=/api/v1) + 70+ API functions
+  lib/api.ts                 # Axios client (baseURL=/api/v1) + 100+ API functions
   store/authStore.ts         # Zustand auth store with localStorage persistence
 ```
 
@@ -112,7 +141,7 @@ docker compose up -d --force-recreate frontend
 ```python
 UserRole: super_admin, owner, farm_manager, vet_manager, accountant,
           employee, data_entry, investor, pallai_customer
-AnimalSpecies: goat, buffalo, cow, sheep
+AnimalSpecies: BUFFALO, GOAT, CATTLE, OTHER
 AnimalStatus: active, sold, deceased, transferred
 MilkSession: morning, evening
 InvoiceStatus: draft, sent, paid, overdue, cancelled

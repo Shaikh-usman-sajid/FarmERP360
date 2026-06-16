@@ -64,20 +64,22 @@ First boot takes 3–5 minutes (pulls images, installs deps, runs migrations, se
 
 ## Seeded Demo Data
 
-| Category       | Details                                         |
-|----------------|-------------------------------------------------|
-| Animals        | 5 Goats (Beetal, Kamori, Teddy) + 4 Buffaloes (Nili-Ravi, Kundi) |
-| Milk Records   | 30 days × 3 female buffaloes × 2 sessions = 180 records |
-| Employees      | 3 (Farm Worker, Milkman, Driver)               |
-| Tasks          | 10 demo tasks (pending, in_progress, completed) assigned to employees |
-| Feed Types     | 7 common Pakistani feed types with current stock levels |
-| Investors      | 3 (33.33% each, PKR 500,000 capital each)      |
-| Pallai Packages| 4 packages (Basic, Premium, Vet, Daily)        |
-| Inventory      | 8 feed/medicine items with stock levels         |
-| Fields         | 3 agricultural fields (5 acres total)           |
-| Crop Cycles    | 3 (2 harvested Berseem/Maize, 1 growing)       |
-| Vaccinations   | 4 records with next due dates                  |
-| Accounting     | 43 chart of accounts, seeded journal entries, sample payroll |
+| Category        | Details                                                                |
+|-----------------|------------------------------------------------------------------------|
+| Users           | 8 demo accounts across all 9 roles                                     |
+| Animals         | 5 Goats (Beetal, Kamori, Teddy) + 4 Buffaloes (Nili-Ravi, Kundi)      |
+| Milk Records    | 30 days × 3 female buffaloes × 2 sessions = 180 records               |
+| Employees       | 3 (Farm Worker, Milkman, Driver)                                       |
+| Tasks           | 10 demo tasks (pending, in_progress, completed) assigned to employees  |
+| Feed Types      | 7 common Pakistani feed types with current stock levels                |
+| Investors       | 3 (33.33% each, PKR 500,000 capital each, with distributions)          |
+| Pallai Packages | 4 packages (Basic, Premium, Vet, Daily)                                |
+| Pallai Customer | 1 demo customer with active subscription                               |
+| Inventory       | 8 feed/medicine items with stock levels                                |
+| Fields          | 3 agricultural fields (5 acres total)                                  |
+| Crop Cycles     | 3 (2 harvested Berseem/Maize, 1 growing Wheat)                        |
+| Vaccinations    | 4 records with next due dates                                          |
+| Accounting      | 43 chart of accounts, seeded journal entries, sample payroll run       |
 
 ---
 
@@ -119,22 +121,20 @@ farmerp360/
 ├── docker-compose.yml
 ├── nginx/
 │   └── nginx.conf
-├── scripts/
-│   └── init.sql
 ├── backend/
 │   ├── app/
-│   │   ├── api/v1/endpoints/   # auth, animals, milk, health, inventory...
+│   │   ├── api/v1/endpoints/   # 17 endpoint modules (see API Modules below)
 │   │   ├── core/               # config, database, security, deps
-│   │   ├── models/             # SQLAlchemy models (all 25+ tables)
-│   │   └── schemas/            # Pydantic schemas
+│   │   ├── models/models.py    # SQLAlchemy ORM (39 tables)
+│   │   └── schemas/            # Pydantic v2 schemas
 │   ├── alembic/                # DB migrations
-│   ├── seed.py                 # Demo data seed script
+│   ├── seed.py                 # Idempotent demo data seed script
 │   └── requirements.txt
 └── frontend/
     └── src/
-        ├── app/                # Next.js pages (all modules)
-        ├── components/layout/  # Sidebar, AuthGuard, DashboardLayout
-        ├── lib/api.ts          # Axios API client
+        ├── app/                # 37 Next.js App Router pages
+        ├── components/layout/  # Sidebar (35+ links), AuthGuard, DashboardLayout
+        ├── lib/api.ts          # Axios client + 100+ typed API functions
         └── store/authStore.ts  # Zustand auth state
 ```
 
@@ -142,25 +142,29 @@ farmerp360/
 
 ## API Modules
 
-| Module             | Endpoints                                           |
-|--------------------|-----------------------------------------------------|
-| Auth               | login, refresh, logout, /me, change-password        |
-| Users              | CRUD + role filtering                               |
-| Animals            | CRUD + photos upload + weight tracking              |
-| Health             | Vaccinations, Treatments, Breeding Records          |
-| Dairy              | Milk Production + Sales + Daily Summary             |
-| Inventory          | Products + Stock Transactions (auto stock update)   |
-| Feed Management    | Feed Types + Stock IN/OUT + Daily Consumption       |
-| Agriculture        | Fields + Crop Cycles + Harvest Recording            |
-| Employees          | CRUD + Attendance Marking                           |
-| Tasks              | Assign + Track + Start/Complete/Cancel              |
-| Investors          | CRUD + Capital Contributions + Portfolio            |
-| Pallai             | Customers + Packages + Subscriptions + Billing      |
-| Invoices           | CRUD with line items + auto-total                   |
-| Payments           | Recording + auto invoice status update              |
-| Accounting         | Chart of Accounts, Journal Entries, Ledger, Payroll, P&L, Balance Sheet |
-| Dashboard          | Owner, Farm, Accounting, Investor dashboards        |
-| Analytics          | 8-tab analytics: Milk, Cash Flow, Farm Health, Profitability, Inventory, Investors, Pallai |
+| Module          | Endpoints                                                                 |
+|-----------------|---------------------------------------------------------------------------|
+| Auth            | login, refresh, logout, /me, change-password                              |
+| Users           | CRUD + role filtering                                                     |
+| Animals         | CRUD + photo upload + weight tracking                                     |
+| Health          | Vaccinations, Treatments, Breeding Records                                |
+| Dairy           | Milk Production + Sales + Daily Summary                                   |
+| Inventory       | Products + Stock Transactions (auto stock update)                         |
+| Feed Management | Feed Types + Stock IN/OUT + Daily Consumption + Summary                   |
+| Agriculture     | Fields + Crop Cycles + Harvest Recording                                  |
+| Employees       | CRUD + Attendance Marking                                                 |
+| Tasks           | Assign + Track + Start / Complete / Cancel                                |
+| Investors       | CRUD + Capital Contributions + Distributions + Portfolio + Investor Portal|
+| Pallai          | Customers + Packages + Subscriptions + Billing + Customer Portal          |
+| Invoices        | CRUD with line items + auto-total                                         |
+| Payments        | Recording + auto invoice status update                                    |
+| Accounting      | Chart of Accounts, Journal Entries, General Ledger, Trial Balance,        |
+|                 | Vendors, Bills (AP), Payroll, Cost Centers,                               |
+|                 | P&L, Balance Sheet, Cash Flow (indirect method), AR Aging                 |
+| Analytics       | 8-tab: Overview, Milk Trends, Cash Flow, Farm Health,                     |
+|                 | Animal Profitability, Inventory Health, Investor Performance, Pallai      |
+| Forecasting     | Feed depletion + reorder alerts, Cash Flow projection, Crop Yield         |
+| Dashboard       | Owner, Farm, Accounting, Investor dashboards + Notifications              |
 
 Full Swagger docs at: http://localhost:8000/docs
 
