@@ -27,6 +27,7 @@ const navItems = [
   { label: 'Invoices', href: '/invoices', icon: '🧾', roles: ['super_admin', 'owner', 'accountant', 'data_entry'] },
   { label: 'Payments', href: '/payments', icon: '💳', roles: ['super_admin', 'owner', 'accountant'] },
   { label: 'Reports', href: '/reports', icon: '📋', roles: ['super_admin', 'owner', 'accountant', 'farm_manager'] },
+  { label: 'Forecasting', href: '/forecasting', icon: '🔮', roles: ['super_admin', 'owner', 'farm_manager', 'accountant'] },
   { label: '── Accounting ──', href: '', icon: '', roles: ['super_admin', 'owner', 'accountant'], divider: true, dividerLabel: 'Accounting' },
   { label: 'Chart of Accounts', href: '/accounting/chart-of-accounts', icon: '📒', roles: ['super_admin', 'owner', 'accountant'] },
   { label: 'Journal Entries', href: '/accounting/journal-entries', icon: '📓', roles: ['super_admin', 'owner', 'accountant'] },

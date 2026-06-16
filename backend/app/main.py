@@ -9,7 +9,7 @@ import os
 from app.models import models  # noqa
 
 # Import routers
-from app.api.v1.endpoints import auth, users, animals, health, dairy, inventory, agriculture, employees, business, dashboard, accounting, pallai, investors, analytics, feed, tasks
+from app.api.v1.endpoints import auth, users, animals, health, dairy, inventory, agriculture, employees, business, dashboard, accounting, pallai, investors, analytics, feed, tasks, forecasting
 
 app = FastAPI(
     title="FarmERP360 API",
@@ -51,6 +51,7 @@ app.include_router(pallai.router, prefix=PREFIX)
 app.include_router(analytics.router, prefix=PREFIX)
 app.include_router(feed.router, prefix=PREFIX)
 app.include_router(tasks.router, prefix=PREFIX)
+app.include_router(forecasting.router, prefix=PREFIX)
 
 
 @app.get("/")

@@ -265,6 +265,12 @@ export const feedAPI = {
   summary: () => api.get('/feed/summary'),
 }
 
+export const forecastingAPI = {
+  feed: (months?: number) => api.get('/forecasting/feed', { params: { months } }),
+  cashFlow: (months?: number, milkPrice?: number) => api.get('/forecasting/cash-flow', { params: { months, milk_price_per_liter: milkPrice } }),
+  cropYield: () => api.get('/forecasting/crop-yield'),
+}
+
 export const analyticsAPI = {
   overview: () => api.get('/analytics/overview'),
   milkTrends: (months?: number) => api.get('/analytics/milk-trends', { params: { months } }),

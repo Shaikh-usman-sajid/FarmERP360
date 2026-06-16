@@ -170,16 +170,16 @@ FarmERP360 is a scalable SaaS-ready platform covering:
 
 | Module | Status | Notes |
 |--------|--------|-------|
-| Forecasting | ❌ | Not built |
+| Forecasting | ✅ | /forecasting page: Feed, Cash Flow, Crop Yield tabs |
 | KPIs | ✅ | 8 KPI cards with MoM comparison on Reports overview tab |
 | Analytics | ✅ | 8-tab analytics dashboard: Overview, Milk, Cash Flow, Farm Health, Animals, Inventory, Investors, Pallai |
 | Animal Profitability | ✅ | Per-animal profit/loss with treatment cost deduction |
 | Investor Profitability | ✅ | Per-investor ROI and distribution history |
-| Feed Forecasting | ❌ | Not built |
-| Cash Flow Forecasting | ❌ | Not built |
-| Crop Yield Forecasting | ❌ | Not built |
+| Feed Forecasting | ✅ | Historical or rule-based daily consumption, depletion dates, reorder alerts, monthly cost projection |
+| Cash Flow Forecasting | ✅ | Linear milk trend, salary + feed expense model, net & cumulative cash flow, adjustable milk price |
+| Crop Yield Forecasting | ✅ | Historical accuracy per crop, projected yield for active cycles, seasonal recommendations |
 
-**Deliverable**: BI Dashboard — 🔶 Core analytics built, forecasting pending
+**Deliverable**: BI Dashboard — ✅ Complete (analytics + forecasting all built)
 
 ---
 
