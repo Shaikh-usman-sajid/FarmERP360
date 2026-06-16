@@ -25,7 +25,8 @@
 16. [Reports & Analytics](#16-reports--analytics)
 17. [Forecasting](#17-forecasting)
 18. [User Management](#18-user-management)
-19. [Role-Based Access Reference](#19-role-based-access-reference)
+19. [Admin Settings](#19-admin-settings)
+20. [Role-Based Access Reference](#20-role-based-access-reference)
 
 ---
 
@@ -551,7 +552,62 @@ Go to **Forecasting** in the sidebar. Three tabs:
 
 ---
 
-## 19. Role-Based Access Reference
+## 19. Admin Settings
+
+**Access**: Super Admin, Owner only  
+Navigate to **Admin Settings** in the sidebar (under the Admin section).
+
+### Organization Tab
+Set your farm's display name, address, phone, email, NTN (tax number), and registration number. This information appears on printed invoices and reports.
+
+### Preferences Tab
+| Setting | Description |
+|---------|-------------|
+| Default Milk Price | Pre-fills the milk price field on sales forms (PKR/liter) |
+| Currency | Display label for all financial figures |
+| Fiscal Year Start Month | Used for annual P&L period calculations |
+| Low Stock Alert Days | Feed types with fewer days remaining than this threshold are flagged |
+| Low Inventory Threshold | Inventory items below this unit count trigger low-stock badges |
+| Date Format | DD/MM/YYYY (Pakistan standard), MM/DD/YYYY, or YYYY-MM-DD |
+
+### Integrations Tab
+
+#### WhatsApp Business API
+1. Create a Meta Business account at business.facebook.com
+2. Set up a WhatsApp Business app → get Phone Number ID and Access Token
+3. Enter credentials in the Integrations tab → enable the toggle
+4. Use **Test** button to verify the connection (enter your number in international format: `923001234567`)
+5. Use **Send Alerts** to broadcast a daily summary to farm staff numbers
+
+Alerts include: overdue vaccinations, overdue invoices, feed types below minimum stock.
+
+#### Easypaisa
+1. Register as a merchant at easypaisa.com.pk/business
+2. Obtain Store ID, Hash Key, and Easypaisa Account Number
+3. Enter in the Integrations tab → enable the toggle
+4. A **Pay** button appears on unpaid invoices → customers can pay via Easypaisa
+
+#### JazzCash
+1. Register as a merchant at jazzcash.com.pk
+2. Obtain Merchant ID, Password, and Integrity Salt
+3. Enter in the Integrations tab → enable the toggle
+4. A **Pay** button appears on unpaid invoices → customers can pay via JazzCash
+
+Both gateways automatically mark invoices as **Paid** when payment is confirmed via webhook.
+
+### Audit Logs Tab
+Full history of all actions taken in the system:
+- Filter by **Module** (animals, accounting, pallai, etc.) or **Action** keyword
+- Columns: Timestamp, User, Role, Module, Action, Record ID
+- Paginated — 50 entries per page
+- Read-only — cannot be edited or deleted
+
+### Animal QR Codes
+On the Animals list page, each row has a **QR** button. Clicking it downloads a branded PNG QR code for that animal. The QR encodes the animal's profile URL — scan it with any phone camera to open the animal record directly.
+
+---
+
+## 20. Role-Based Access Reference
 
 | Module | super_admin | owner | farm_manager | vet_manager | accountant | employee | data_entry | investor | pallai_customer |
 |--------|:-----------:|:-----:|:------------:|:-----------:|:----------:|:--------:|:----------:|:--------:|:---------------:|
@@ -573,6 +629,7 @@ Go to **Forecasting** in the sidebar. Three tabs:
 | Accounting | ✅ | ✅ | — | — | ✅ | — | — | — | — |
 | Reports | ✅ | ✅ | ✅ | — | ✅ | — | — | — | — |
 | Forecasting | ✅ | ✅ | ✅ | — | ✅ | — | — | — | — |
+| Admin Settings | ✅ | ✅ | — | — | — | — | — | — | — |
 | Users | ✅ | ✅ | — | — | — | — | — | — | — |
 
 ---

@@ -60,6 +60,9 @@ backend/app/
     analytics.py             # 8-tab analytics: milk, cash flow, farm health, profitability,
                              #   inventory, investors, pallai
     forecasting.py           # feed, cash flow, crop yield forecasting engines
+    admin.py                 # system settings CRUD, enhanced audit logs, animal QR code (PNG),
+                             #   WhatsApp Business API alerts, Easypaisa/JazzCash payment params,
+                             #   payment webhooks (/webhooks/easypaisa, /webhooks/jazzcash)
     dashboard.py             # role dashboards (owner/farm/accounting/investor), notifications
   seed.py                    # idempotent demo data
   init_db.py                 # create tables on startup
@@ -94,6 +97,7 @@ frontend/src/
     payments/page.tsx
     reports/page.tsx             # 8-tab analytics dashboard
     forecasting/page.tsx         # Feed, Cash Flow, Crop Yield tabs
+    admin/settings/page.tsx      # 4-tab admin panel: Org, Preferences, Integrations, Audit Logs
     accounting/chart-of-accounts/page.tsx
     accounting/journal-entries/page.tsx
     accounting/ledger/page.tsx
@@ -109,9 +113,9 @@ frontend/src/
     help/page.tsx
   components/layout/
     DashboardLayout.tsx      # Wraps all protected pages with AuthGuard + Sidebar
-    Sidebar.tsx              # Role-based nav, 35+ links with section dividers
+    Sidebar.tsx              # Role-based nav, 40+ links with section dividers (incl. Admin section)
     AuthGuard.tsx            # Redirects to /login if not authenticated
-  lib/api.ts                 # Axios client (baseURL=/api/v1) + 100+ API functions
+  lib/api.ts                 # Axios client (baseURL=/api/v1) + 110+ API functions (incl. adminAPI)
   store/authStore.ts         # Zustand auth store with localStorage persistence
 ```
 

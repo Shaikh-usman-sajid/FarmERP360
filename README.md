@@ -132,9 +132,9 @@ farmerp360/
 │   └── requirements.txt
 └── frontend/
     └── src/
-        ├── app/                # 37 Next.js App Router pages
-        ├── components/layout/  # Sidebar (35+ links), AuthGuard, DashboardLayout
-        ├── lib/api.ts          # Axios client + 100+ typed API functions
+        ├── app/                # 38 Next.js App Router pages (incl. /admin/settings)
+        ├── components/layout/  # Sidebar (40+ links), AuthGuard, DashboardLayout
+        ├── lib/api.ts          # Axios client + 110+ typed API functions
         └── store/authStore.ts  # Zustand auth state
 ```
 
@@ -164,6 +164,9 @@ farmerp360/
 | Analytics       | 8-tab: Overview, Milk Trends, Cash Flow, Farm Health,                     |
 |                 | Animal Profitability, Inventory Health, Investor Performance, Pallai      |
 | Forecasting     | Feed depletion + reorder alerts, Cash Flow projection, Crop Yield         |
+| Admin           | System Settings (org, preferences, integration keys), Audit Log viewer,   |
+|                 | Animal QR code generation, WhatsApp alert service,                        |
+|                 | Easypaisa + JazzCash payment params + webhooks                            |
 | Dashboard       | Owner, Farm, Accounting, Investor dashboards + Notifications              |
 
 Full Swagger docs at: http://localhost:8000/docs

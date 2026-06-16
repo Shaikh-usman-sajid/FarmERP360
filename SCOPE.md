@@ -1,7 +1,7 @@
 # FarmERP360 — Development Roadmap & Project Scope
 
 **Version**: 1.0  
-**Status**: In Progress — Phases 1–4 & 6 complete; Phase 5 (Mobile) & 7 (Integrations) not started  
+**Status**: In Progress — Phases 1–4, 6 & 7 (partial) complete; Phase 5 (Mobile) not started  
 **Last Reviewed**: 2026-06-16  
 **Project Type**: Cloud-Native SaaS Platform  
 **Source**: myscope.txt  
@@ -188,16 +188,17 @@ FarmERP360 is a scalable SaaS-ready platform covering:
 
 | Integration | Status | Notes |
 |-------------|--------|-------|
-| WhatsApp Integration | ❌ | Notifications via WhatsApp API |
-| Easypaisa | ❌ | Payment gateway |
-| JazzCash | ❌ | Payment gateway |
-| QR Codes | ❌ | Animal identification |
-| RFID | ❌ | Animal identification |
-| Digital Weighing Scale | ❌ | Direct scale integration |
-| Milk Meter Integration | ❌ | IoT milk measurement |
-| IoT Sensors | ❌ | Farm sensors |
+| WhatsApp Integration | ✅ | Meta Business Cloud API; test message, daily alerts, overdue alerts |
+| Easypaisa | ✅ | Merchant credentials config, signed payment form, webhook auto-marks paid |
+| JazzCash | ✅ | Merchant credentials config, HMAC-signed params, webhook auto-marks paid |
+| QR Codes | ✅ | Per-animal branded PNG QR code, download from animal list |
+| Admin Config Panel | ✅ | /admin/settings — org profile, preferences, integration keys, audit log viewer |
+| RFID | ❌ | Animal identification (requires hardware) |
+| Digital Weighing Scale | ❌ | Direct scale integration (requires hardware) |
+| Milk Meter Integration | ❌ | IoT milk measurement (requires hardware) |
+| IoT Sensors | ❌ | Farm sensors (requires hardware) |
 
-**Deliverable**: Smart Farm Ecosystem — ❌ Not started
+**Deliverable**: Smart Farm Ecosystem — 🔶 Partial (software integrations done; IoT/hardware pending)
 
 ---
 
@@ -223,8 +224,12 @@ FarmERP360 is a scalable SaaS-ready platform covering:
 **Could Have (later)**
 - ✅ Cash Flow Statement (accounting) — built
 - ✅ Forecasting (Feed, Cash Flow, Crop Yield) — built
-- IoT integrations
-- RFID animal identification
+- ✅ Admin Config Panel — org settings, preferences, integration keys, audit logs
+- ✅ WhatsApp Notifications — alert broadcasts via Meta Business Cloud API
+- ✅ Easypaisa & JazzCash payment gateways — invoice payment with webhooks
+- ✅ QR Codes for animals — branded PNG per animal
+- IoT integrations (hardware required)
+- RFID animal identification (hardware required)
 
 ---
 
@@ -260,9 +265,13 @@ Based on the roadmap, the recommended build order for what remains:
 9. ✅ **Profit Sharing** — distributions (profit/dividend/return)
 10. ✅ **Cash Flow Statement** — indirect method, three sections + opening/closing cash reconciliation
 11. ✅ **Forecasting Engine** — Feed, Cash Flow, and Crop Yield forecasting with charts
-12. **Sprint 9 — Testing & Bug Fixes** — unit tests, integration tests, UAT
-13. **Sprint 10 — Production Release** — staging env, SSL, monitoring, data migration
-14. **Mobile App** — tech stack decision needed before starting (React Native vs Flutter vs PWA)
+12. ✅ **Admin Settings Panel** — org config, preferences, integration key management, audit log viewer
+13. ✅ **WhatsApp Notifications** — Meta Business Cloud API; daily alerts, test message, bulk send
+14. ✅ **Easypaisa & JazzCash** — payment gateway config, signed payment forms, webhooks
+15. ✅ **QR Codes** — per-animal branded QR code generation and download
+16. **Sprint 9 — Testing & Bug Fixes** — unit tests, integration tests, UAT
+17. **Sprint 10 — Production Release** — staging env, SSL, monitoring, data migration
+18. **Mobile App** — tech stack decision needed before starting (React Native vs Flutter vs PWA)
 
 ---
 

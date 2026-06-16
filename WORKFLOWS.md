@@ -21,6 +21,10 @@ This document describes the standard operating workflows for each business proce
 11. [New Employee Onboarding](#11-new-employee-onboarding)
 12. [Crop Cycle Workflow](#12-crop-cycle-workflow)
 13. [Month-End Reporting](#13-month-end-reporting)
+14. [Admin Setup & Configuration](#14-admin-setup--configuration)
+15. [WhatsApp Notification Workflow](#15-whatsapp-notification-workflow)
+16. [Online Payment Collection Workflow](#16-online-payment-collection-workflow)
+17. [Animal QR Code Workflow](#17-animal-qr-code-workflow)
 
 ---
 
@@ -536,6 +540,141 @@ Owner / Farm Manager / Accountant:
 
 ---
 
+---
+
+## 14. Admin Setup & Configuration
+
+### First-Time Setup (Owner / Super Admin)
+
+```
+1. Go to Admin Settings → Organization tab
+   → Enter farm name, address, phone, email, NTN, registration number
+   → Click Save Changes
+
+2. Go to Preferences tab
+   → Set default milk price per liter (PKR)
+   → Set fiscal year start month (default: July for Pakistan)
+   → Set low stock alert threshold (days)
+   → Click Save Changes
+
+3. Go to Integrations tab
+   → Configure any payment gateways or WhatsApp (see workflows 15 & 16)
+
+4. Verify audit logs are populating
+   → Admin Settings → Audit Logs tab
+   → Recent logins and creates should appear
+```
+
+### Updating Settings
+
+Settings can be changed at any time. Sensitive fields (API keys, passwords) display as `••••••••` once saved — re-enter to update, leave unchanged to keep existing.
+
+---
+
+## 15. WhatsApp Notification Workflow
+
+### One-Time Setup
+
+```
+1. Create Meta Business account at business.facebook.com
+2. Create WhatsApp Business app in Meta Developer Console
+3. Add a phone number → get Phone Number ID
+4. Generate a permanent access token (System User token recommended)
+5. Admin Settings → Integrations → WhatsApp section:
+   → Enter Phone Number ID, Access Token, Business Account ID
+   → Enable toggle → Save Changes
+6. Test: enter your number (e.g. 923001234567) → click Test
+   → You should receive a test message on WhatsApp
+```
+
+### Daily Alert Workflow
+
+```
+Recommended: run every morning
+
+Owner / Farm Manager:
+  1. Admin Settings → Integrations → WhatsApp section
+  2. Preview alerts panel shows current counts:
+     - Overdue vaccinations
+     - Overdue invoices
+     - Feed types below minimum stock
+  3. Enter recipient numbers (comma-separated)
+  4. Click Send Alerts
+  5. Each recipient receives a formatted WhatsApp message with all alerts
+```
+
+### Automatic Triggers (future)
+Currently alerts are sent manually. A scheduled job (cron) can call the send endpoint automatically each morning once a task scheduler is set up.
+
+---
+
+## 16. Online Payment Collection Workflow
+
+### Setup (once per gateway)
+
+```
+Easypaisa:
+  1. Register merchant at easypaisa.com.pk/business
+  2. Get: Store ID, Hash Key, Account Number
+  3. Admin Settings → Integrations → Easypaisa → enable + enter credentials
+
+JazzCash:
+  1. Register merchant at jazzcash.com.pk
+  2. Get: Merchant ID, Password, Integrity Salt
+  3. Admin Settings → Integrations → JazzCash → enable + enter credentials
+```
+
+### Collecting Payment on an Invoice
+
+```
+1. Create or find an outstanding invoice (status: Sent or Overdue)
+2. Invoices page → click Pay button on the invoice row
+3. Payment modal appears with enabled gateway(s)
+4. Share the payment link / QR with the customer:
+   - Option A: Customer comes to your office → you submit the form for them
+   - Option B (future): Generate a shareable payment URL for the customer
+5. Customer completes payment on Easypaisa/JazzCash portal
+6. Gateway sends a webhook to FarmERP360
+7. Invoice status automatically changes to Paid
+```
+
+### Manual Fallback
+
+If a customer pays via bank transfer or cash:
+```
+→ Payments → Record Payment → select invoice → enter amount and date
+```
+
+---
+
+## 17. Animal QR Code Workflow
+
+### Generating & Printing QR Labels
+
+```
+1. Animals page → find the animal
+2. Click the QR button in the action column
+3. A PNG file downloads: animal_{ear_tag}_qr.png
+4. Print the PNG on a label sticker (recommended: 5cm × 5cm waterproof label)
+5. Attach to the animal's ear tag holder, feed stall, or records folder
+```
+
+### Scanning a QR Code
+
+```
+1. Open phone camera (any modern smartphone)
+2. Point at the QR label
+3. Tap the notification → opens animal profile in the browser
+4. Staff can immediately see: species, breed, health records, weight history
+```
+
+### QR Code Contents
+
+Each QR encodes the URL: `{base_url}/animals?id={animal_id}&tag={ear_tag}`  
+The base URL defaults to the server's origin. It can be set to your public domain once deployed with SSL.
+
+---
+
 ## Quick Reference: Who Does What
 
 | Task | Primary Role | Supporting Role |
@@ -552,3 +691,7 @@ Owner / Farm Manager / Accountant:
 | Run financial reports | Accountant | Owner |
 | Manage users | Owner | Super Admin |
 | Review forecasts | Owner | Farm Manager, Accountant |
+| Configure integrations | Owner | Super Admin |
+| Send WhatsApp alerts | Owner | Farm Manager |
+| Collect online payment | Accountant | Owner |
+| Generate animal QR codes | Farm Manager | Data Entry |
