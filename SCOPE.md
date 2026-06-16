@@ -1,7 +1,7 @@
 # FarmERP360 — Development Roadmap & Project Scope
 
 **Version**: 1.0  
-**Status**: In Progress  
+**Status**: In Progress — Phases 1–4 & 6 complete; Phase 5 (Mobile) & 7 (Integrations) not started  
 **Last Reviewed**: 2026-06-16  
 **Project Type**: Cloud-Native SaaS Platform  
 **Source**: myscope.txt  
@@ -203,17 +203,17 @@ FarmERP360 is a scalable SaaS-ready platform covering:
 
 ## MVP Priority (Must Have First)
 
-| Feature | Status |
-|---------|--------|
-| Authentication | ✅ |
-| Animal Management | ✅ |
-| Milk Management | ✅ |
-| Feed Management | ✅ dedicated module built |
-| Inventory | ✅ |
-| Agriculture | ✅ |
-| Employees | ✅ |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Authentication | ✅ | JWT, 9 roles |
+| Animal Management | ✅ | |
+| Milk Management | ✅ | |
+| Feed Management | ✅ | Dedicated module |
+| Inventory | ✅ | |
+| Agriculture | ✅ | |
+| Employees | ✅ | |
 | Reports | ✅ | 8-tab analytics dashboard + financial reports |
-| Dashboard | ✅ |
+| Dashboard | ✅ | Owner, farm, accounting, investor views |
 
 **Should Have (next priority)**
 - ✅ Full Accounting ERP (Phase 2) — complete (all 14 modules including Cash Flow)
@@ -221,10 +221,10 @@ FarmERP360 is a scalable SaaS-ready platform covering:
 - ✅ Pallai Portal (Phase 3) — complete
 
 **Could Have (later)**
-- Cash Flow Statement (accounting)
-- AI Forecasting
-- IoT
-- RFID
+- ✅ Cash Flow Statement (accounting) — built
+- ✅ Forecasting (Feed, Cash Flow, Crop Yield) — built
+- IoT integrations
+- RFID animal identification
 
 ---
 
@@ -259,9 +259,10 @@ Based on the roadmap, the recommended build order for what remains:
 8. ✅ **Investor Portal** — /investors/portal for investor role
 9. ✅ **Profit Sharing** — distributions (profit/dividend/return)
 10. ✅ **Cash Flow Statement** — indirect method, three sections + opening/closing cash reconciliation
-11. **Sprint 9 — Testing & Bug Fixes** — unit tests, integration tests, UAT
-12. **Sprint 10 — Production Release** — staging env, SSL, monitoring, data migration
-13. **Mobile App** — tech stack decision needed before starting (React Native vs Flutter vs PWA)
+11. ✅ **Forecasting Engine** — Feed, Cash Flow, and Crop Yield forecasting with charts
+12. **Sprint 9 — Testing & Bug Fixes** — unit tests, integration tests, UAT
+13. **Sprint 10 — Production Release** — staging env, SSL, monitoring, data migration
+14. **Mobile App** — tech stack decision needed before starting (React Native vs Flutter vs PWA)
 
 ---
 
