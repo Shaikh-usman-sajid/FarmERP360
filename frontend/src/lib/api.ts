@@ -271,6 +271,18 @@ export const forecastingAPI = {
   cropYield: () => api.get('/forecasting/crop-yield'),
 }
 
+export const adminAPI = {
+  getSettings: () => api.get('/admin/settings'),
+  updateSettings: (data: Record<string, string>) => api.put('/admin/settings', data),
+  getAuditLogs: (params?: object) => api.get('/admin/audit-logs', { params }),
+  previewAlerts: () => api.get('/admin/notifications/alerts/preview'),
+  sendAlerts: (data: object) => api.post('/admin/notifications/alerts/send', data),
+  testWhatsapp: (data: { to: string; message?: string }) => api.post('/admin/notifications/whatsapp/test', data),
+  getPaymentOptions: (invoiceId: string) => api.get(`/admin/payments/invoice/${invoiceId}`),
+  getAnimalQrCode: (animalId: string, baseUrl?: string) =>
+    api.get(`/animals/${animalId}/qrcode`, { params: { base_url: baseUrl }, responseType: 'blob' }),
+}
+
 export const analyticsAPI = {
   overview: () => api.get('/analytics/overview'),
   milkTrends: (months?: number) => api.get('/analytics/milk-trends', { params: { months } }),

@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { invoicesAPI } from '@/lib/api'
+import { invoicesAPI, adminAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
 
@@ -12,6 +12,8 @@ const emptyForm = { customer_name: '', issue_date: today, due_date: '', notes: '
 export default function InvoicesPage() {
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
+  const [payInvoice, setPayInvoice] = useState<any>(null)
+  const [payOptions, setPayOptions] = useState<any>(null)
   const [form, setForm] = useState<any>(emptyForm)
 
   const { data } = useQuery({ queryKey: ['invoices'], queryFn: () => invoicesAPI.list({ per_page: 50 }).then(r => r.data.data) })
@@ -62,10 +64,27 @@ export default function InvoicesPage() {
                 <td className="table-cell font-bold">{Number(inv.total_amount).toLocaleString()}</td>
                 <td className="table-cell text-green-700">{Number(inv.paid_amount).toLocaleString()}</td>
                 <td className="table-cell"><span className={statusColors[inv.status]}>{inv.status}</span></td>
+                <td className="table-cell">
+                  {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                    <button
+                      onClick={async () => {
+                        setPayInvoice(inv)
+                        try {
+                          const r = await adminAPI.getPaymentOptions(inv.id)
+                          setPayOptions(r.data.data)
+                        } catch {
+                          setPayOptions({ gateways: [], error: 'Payment gateways not configured' })
+                        }
+                      }}
+                      className="text-xs px-2 py-1 rounded font-medium"
+                      style={{ backgroundColor: '#eff6ff', color: '#1d4ed8' }}
+                    >Pay</button>
+                  )}
+                </td>
               </tr>
             ))}
             {(data?.items ?? []).length === 0 && (
-              <tr><td colSpan={7} className="text-center py-12 text-gray-400">No invoices found</td></tr>
+              <tr><td colSpan={8} className="text-center py-12 text-gray-400">No invoices found</td></tr>
             )}
           </tbody>
         </table>
@@ -132,6 +151,56 @@ export default function InvoicesPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Payment Gateway Modal */}
+      {payInvoice && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b">
+              <div>
+                <h3 className="font-semibold text-gray-900">Pay Invoice #{payInvoice.invoice_number}</h3>
+                <p className="text-sm text-gray-500">Amount: PKR {Number(payInvoice.total_amount).toLocaleString()}</p>
+              </div>
+              <button onClick={() => { setPayInvoice(null); setPayOptions(null) }} className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            <div className="p-5 space-y-3">
+              {!payOptions && <div className="text-center text-gray-400 py-4">Loading payment options…</div>}
+              {payOptions?.error && (
+                <div className="text-center py-4">
+                  <p className="text-gray-500 mb-3">{payOptions.error}</p>
+                  <a href="/admin/settings" className="text-sm font-medium" style={{ color: '#2D6A4F' }}>
+                    → Configure payment gateways in Admin Settings
+                  </a>
+                </div>
+              )}
+              {payOptions?.gateways?.length === 0 && !payOptions?.error && (
+                <div className="text-center py-4">
+                  <p className="text-gray-500 mb-3">No payment gateways are enabled.</p>
+                  <a href="/admin/settings" className="text-sm font-medium" style={{ color: '#2D6A4F' }}>
+                    → Enable Easypaisa or JazzCash in Admin Settings
+                  </a>
+                </div>
+              )}
+              {payOptions?.gateways?.map((gw: any) => (
+                <div key={gw.provider} className="border rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-semibold text-gray-800">{gw.label}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-50 text-green-700">Active</span>
+                  </div>
+                  <form method="POST" action={gw.payment_url} target="_blank">
+                    {Object.entries(gw.params).map(([k, v]: [string, any]) => (
+                      <input key={k} type="hidden" name={k} value={v} />
+                    ))}
+                    <button type="submit" className="w-full py-2.5 rounded-lg text-sm font-semibold text-white"
+                      style={{ backgroundColor: gw.provider === 'easypaisa' ? '#009847' : '#f97316' }}>
+                      Pay with {gw.label}
+                    </button>
+                  </form>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

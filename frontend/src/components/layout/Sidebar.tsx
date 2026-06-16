@@ -40,7 +40,9 @@ const navItems = [
   { label: 'Balance Sheet', href: '/accounting/balance-sheet', icon: '🏦', roles: ['super_admin', 'owner', 'accountant'] },
   { label: 'Cash Flow', href: '/accounting/cash-flow', icon: '💧', roles: ['super_admin', 'owner', 'accountant'] },
   { label: 'Receivables', href: '/accounting/receivables', icon: '💵', roles: ['super_admin', 'owner', 'accountant'] },
-  { label: 'Users', href: '/users', icon: '⚙️', roles: ['super_admin', 'owner'] },
+  { label: '── Admin ──', href: '', icon: '', roles: ['super_admin', 'owner'], divider: true, dividerLabel: 'Admin' },
+  { label: 'Users', href: '/users', icon: '👤', roles: ['super_admin', 'owner'] },
+  { label: 'Admin Settings', href: '/admin/settings', icon: '⚙️', roles: ['super_admin', 'owner'] },
   { label: 'Help / Manual', href: '/help', icon: '📖', roles: ['all'] },
 ]
 

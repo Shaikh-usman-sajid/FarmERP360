@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from sqlalchemy import (
     Column, String, Boolean, DateTime, ForeignKey,
-    Numeric, Integer, Text, Date, Enum, JSON, Float
+    Numeric, Integer, Text, Date, Enum, JSON, Float, UniqueConstraint
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, backref
@@ -978,3 +978,21 @@ class Task(Base):
     assigned_to = relationship("Employee", foreign_keys=[assigned_to_id])
     assigned_by = relationship("User", foreign_keys=[assigned_by_id])
     animal = relationship("Animal")
+
+
+# ─────────────────────────────────────────────
+# SYSTEM SETTINGS
+# ─────────────────────────────────────────────
+
+class SystemSettings(Base):
+    __tablename__ = "system_settings"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False)
+    category = Column(String(50), nullable=False)  # organization, preferences, integrations
+    key = Column(String(100), nullable=False)
+    value = Column(Text)
+    is_sensitive = Column(Boolean, default=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=True)
+
+    __table_args__ = (UniqueConstraint("organization_id", "key", name="uq_settings_org_key"),)

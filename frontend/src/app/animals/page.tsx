@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { animalsAPI } from '@/lib/api'
+import { animalsAPI, adminAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
 
@@ -109,7 +109,25 @@ export default function AnimalsPage() {
                 <td className="table-cell">{statusBadge(a.status)}</td>
                 <td className="table-cell">{a.current_value ? Number(a.current_value).toLocaleString() : '—'}</td>
                 <td className="table-cell" onClick={e => e.stopPropagation()}>
-                  <button onClick={() => deleteMutation.mutate(a.id)} className="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await adminAPI.getAnimalQrCode(a.id, window.location.origin)
+                          const url = URL.createObjectURL(res.data)
+                          const link = document.createElement('a')
+                          link.href = url
+                          link.download = `animal_${a.ear_tag || a.animal_code}_qr.png`
+                          link.click()
+                          URL.revokeObjectURL(url)
+                        } catch { toast.error('QR code failed') }
+                      }}
+                      title="Download QR Code"
+                      className="text-xs px-2 py-1 rounded"
+                      style={{ backgroundColor: '#f0fdf4', color: '#166534' }}
+                    >QR</button>
+                    <button onClick={() => deleteMutation.mutate(a.id)} className="text-red-500 hover:text-red-700 text-xs">Remove</button>
+                  </div>
                 </td>
               </tr>
             ))}
