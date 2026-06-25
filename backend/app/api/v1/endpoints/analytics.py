@@ -222,27 +222,47 @@ def analytics_animal_profitability(
         Animal.is_active == True,
     ).all()
 
+    animal_ids = [a.id for a in animals]
+
+    # Single aggregation query for milk liters per animal
+    milk_by_animal = dict(
+        db.query(MilkProduction.animal_id, func.coalesce(func.sum(MilkProduction.quantity_liters), 0))
+        .filter(
+            MilkProduction.animal_id.in_(animal_ids),
+            MilkProduction.production_date >= twelve_months_ago,
+        )
+        .group_by(MilkProduction.animal_id)
+        .all()
+    ) if animal_ids else {}
+
+    # Single aggregation query for treatment cost per animal
+    treatment_by_animal = dict(
+        db.query(Treatment.animal_id, func.coalesce(func.sum(Treatment.cost), 0))
+        .filter(
+            Treatment.animal_id.in_(animal_ids),
+            Treatment.treatment_date >= twelve_months_ago,
+        )
+        .group_by(Treatment.animal_id)
+        .all()
+    ) if animal_ids else {}
+
+    # Single aggregation query for vaccination count per animal
+    vac_by_animal = dict(
+        db.query(Vaccination.animal_id, func.count(Vaccination.id))
+        .filter(
+            Vaccination.animal_id.in_(animal_ids),
+            Vaccination.administered_date >= twelve_months_ago,
+        )
+        .group_by(Vaccination.animal_id)
+        .all()
+    ) if animal_ids else {}
+
     rows = []
     for animal in animals:
-        # Milk revenue: MilkProduction has animal_id — quantity * 80 PKR/liter
-        milk_liters = db.query(func.coalesce(func.sum(MilkProduction.quantity_liters), 0)).filter(
-            MilkProduction.animal_id == animal.id,
-            MilkProduction.production_date >= twelve_months_ago,
-        ).scalar() or Decimal("0")
-        milk_revenue = float(milk_liters) * 80.0
-
-        # Treatment cost (last 12 months)
-        treatment_cost = db.query(func.coalesce(func.sum(Treatment.cost), 0)).filter(
-            Treatment.animal_id == animal.id,
-            Treatment.treatment_date >= twelve_months_ago,
-        ).scalar() or Decimal("0")
-        treatment_cost = float(treatment_cost)
-
-        # Vaccination cost: count * 500 PKR estimate (last 12 months)
-        vac_count = db.query(func.count(Vaccination.id)).filter(
-            Vaccination.animal_id == animal.id,
-            Vaccination.administered_date >= twelve_months_ago,
-        ).scalar() or 0
+        milk_liters = float(milk_by_animal.get(animal.id, 0))
+        milk_revenue = milk_liters * 80.0
+        treatment_cost = float(treatment_by_animal.get(animal.id, 0))
+        vac_count = int(vac_by_animal.get(animal.id, 0))
         vaccination_cost = vac_count * 500.0
 
         estimated_profit = milk_revenue - treatment_cost - vaccination_cost

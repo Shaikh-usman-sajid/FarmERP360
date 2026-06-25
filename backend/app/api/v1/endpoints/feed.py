@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import Optional
 from datetime import date, timedelta
@@ -107,7 +107,7 @@ def list_feed_stock(
         q = q.filter(FeedStockTransaction.transaction_date >= date_from)
     if date_to:
         q = q.filter(FeedStockTransaction.transaction_date <= date_to)
-    txs = q.order_by(FeedStockTransaction.transaction_date.desc()).all()
+    txs = q.options(joinedload(FeedStockTransaction.feed_type)).order_by(FeedStockTransaction.transaction_date.desc()).all()
     return {"success": True, "data": [_stock_tx_dict(t) for t in txs]}
 
 
@@ -176,7 +176,10 @@ def list_feed_consumption(
         q = q.filter(FeedConsumption.consumption_date >= date_from)
     if date_to:
         q = q.filter(FeedConsumption.consumption_date <= date_to)
-    records = q.order_by(FeedConsumption.consumption_date.desc()).all()
+    records = q.options(
+        joinedload(FeedConsumption.feed_type),
+        joinedload(FeedConsumption.animal),
+    ).order_by(FeedConsumption.consumption_date.desc()).all()
     return {"success": True, "data": [_consumption_dict(r) for r in records]}
 
 

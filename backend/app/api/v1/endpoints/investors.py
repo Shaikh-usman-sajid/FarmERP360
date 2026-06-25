@@ -144,9 +144,14 @@ def get_portfolio(inv_id: str, db: Session = Depends(get_db), current_user: User
         AnimalOwnership.is_current == True
     ).all() if investor.user_id else []
 
+    animal_ids = [o.animal_id for o in ownerships]
+    animals_map = {
+        a.id: a for a in db.query(Animal).filter(Animal.id.in_(animal_ids)).all()
+    } if animal_ids else {}
+
     animals_data = []
     for o in ownerships:
-        animal = db.query(Animal).filter(Animal.id == o.animal_id).first()
+        animal = animals_map.get(o.animal_id)
         if animal:
             animals_data.append({
                 "animal_id": animal.id,

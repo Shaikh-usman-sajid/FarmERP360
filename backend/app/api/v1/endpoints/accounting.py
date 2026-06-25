@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, case
 from typing import List, Optional
 from datetime import date, datetime
@@ -482,15 +482,14 @@ def list_bills(
         q = q.filter(VendorBill.status == status)
     if vendor_id:
         q = q.filter(VendorBill.vendor_id == vendor_id)
-    bills = q.order_by(VendorBill.bill_date.desc()).all()
+    bills = q.options(joinedload(VendorBill.vendor)).order_by(VendorBill.bill_date.desc()).all()
     result = []
     for bill in bills:
-        vendor = db.query(Vendor).filter_by(id=bill.vendor_id).first()
         out = VendorBillOut(
             id=bill.id,
             bill_number=bill.bill_number,
             vendor_id=bill.vendor_id,
-            vendor_name=vendor.name if vendor else None,
+            vendor_name=bill.vendor.name if bill.vendor else None,
             bill_date=bill.bill_date,
             due_date=bill.due_date,
             total_amount=bill.total_amount,
@@ -684,16 +683,17 @@ def get_payroll_run(
     current_user: User = Depends(require_roles(ACCOUNTING_ROLES)),
     org_id: str = Depends(get_org_id),
 ):
-    run = db.query(PayrollRun).filter_by(id=run_id, organization_id=org_id).first()
+    run = db.query(PayrollRun).options(
+        joinedload(PayrollRun.records).joinedload(PayrollRecord.employee)
+    ).filter_by(id=run_id, organization_id=org_id).first()
     if not run:
         raise HTTPException(404, "Payroll run not found")
     records_out = []
     for rec in run.records:
-        emp = db.query(Employee).filter_by(id=rec.employee_id).first()
         records_out.append(PayrollRecordOut(
             id=rec.id,
             employee_id=rec.employee_id,
-            employee_name=emp.full_name if emp else None,
+            employee_name=rec.employee.full_name if rec.employee else None,
             basic_salary=rec.basic_salary,
             days_present=rec.days_present,
             working_days=rec.working_days,

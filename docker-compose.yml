@@ -78,12 +78,10 @@ services:
     container_name: farmerp360_frontend
     restart: unless-stopped
     environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
       NEXT_PUBLIC_API_URL: /api/v1
       NEXT_PUBLIC_APP_NAME: FarmERP360
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
     ports:
       - "3000:3000"
     depends_on:
