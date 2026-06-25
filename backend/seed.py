@@ -17,7 +17,8 @@ from app.models.models import (
     Notification, Vaccination, Treatment, Task,
     UserRole, AnimalSpecies, AnimalGender, AnimalStatus, OwnershipType,
     MilkSession, EmploymentStatus, AttendanceStatus, InventoryTxType, CropStatus,
-    TaskStatus, TaskPriority, TaskCategory
+    TaskStatus, TaskPriority, TaskCategory,
+    JournalEntry, JournalEntryLine, ChartOfAccount, JournalEntryStatus,
 )
 
 
@@ -377,6 +378,78 @@ def seed():
                 )
                 db.add(t)
             db.flush()
+
+        # ─── JOURNAL ENTRIES ─────────────────────────────
+        je_count = db.query(JournalEntry).filter_by(organization_id=org.id).count()
+        if je_count == 0:
+            admin_user = db.query(User).filter_by(organization_id=org.id).first()
+
+            def get_acct(code):
+                return db.query(ChartOfAccount).filter_by(
+                    organization_id=org.id, account_code=code
+                ).first()
+
+            seed_entries = [
+                {
+                    "number": "JE-00001",
+                    "date": date.today() - timedelta(days=30),
+                    "desc": "Opening cash balance",
+                    "lines": [("1010", Decimal("500000"), Decimal("0")),
+                               ("3000", Decimal("0"), Decimal("500000"))],
+                },
+                {
+                    "number": "JE-00002",
+                    "date": date.today() - timedelta(days=20),
+                    "desc": "Feed purchase - Berseem & Corn Silage",
+                    "lines": [("5000", Decimal("45000"), Decimal("0")),
+                               ("1010", Decimal("0"), Decimal("45000"))],
+                },
+                {
+                    "number": "JE-00003",
+                    "date": date.today() - timedelta(days=15),
+                    "desc": "Milk sales revenue - June batch",
+                    "lines": [("1010", Decimal("120000"), Decimal("0")),
+                               ("4000", Decimal("0"), Decimal("120000"))],
+                },
+                {
+                    "number": "JE-00004",
+                    "date": date.today() - timedelta(days=7),
+                    "desc": "Monthly staff salaries",
+                    "lines": [("6000", Decimal("85000"), Decimal("0")),
+                               ("2100", Decimal("0"), Decimal("85000"))],
+                },
+                {
+                    "number": "JE-00005",
+                    "date": date.today() - timedelta(days=3),
+                    "desc": "Veterinary & medicine cost",
+                    "lines": [("5100", Decimal("12500"), Decimal("0")),
+                               ("1010", Decimal("0"), Decimal("12500"))],
+                },
+            ]
+
+            for entry_data in seed_entries:
+                je = JournalEntry(
+                    organization_id=org.id,
+                    entry_number=entry_data["number"],
+                    entry_date=entry_data["date"],
+                    description=entry_data["desc"],
+                    status=JournalEntryStatus.POSTED,
+                    created_by=admin_user.id,
+                )
+                db.add(je)
+                db.flush()
+                for code, dr, cr in entry_data["lines"]:
+                    acct = get_acct(code)
+                    if acct:
+                        db.add(JournalEntryLine(
+                            entry_id=je.id,
+                            account_id=acct.id,
+                            debit_amount=dr,
+                            credit_amount=cr,
+                            description=entry_data["desc"],
+                        ))
+                je.total_debit = sum(l[1] for l in entry_data["lines"])
+                je.total_credit = sum(l[2] for l in entry_data["lines"])
 
         # ─── NOTIFICATIONS ───────────────────────────────
         owner_user = db.query(User).filter(User.role == UserRole.OWNER, User.organization_id == org.id).first()

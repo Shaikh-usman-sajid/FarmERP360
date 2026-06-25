@@ -100,7 +100,10 @@ export default function GeneralLedgerPage() {
     queryKey: ['general-ledger', queryAccountId, queryDateFrom, queryDateTo],
     queryFn: () =>
       accountingAPI
-        .getGeneralLedger(queryAccountId, queryDateFrom || undefined, queryDateTo || undefined)
+        .getGeneralLedger(queryAccountId, {
+          date_from: queryDateFrom || undefined,
+          date_to: queryDateTo || undefined,
+        })
         .then((r) => r.data.data ?? r.data),
     enabled: !!queryAccountId,
   })

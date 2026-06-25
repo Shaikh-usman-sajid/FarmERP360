@@ -1,6 +1,6 @@
 # FarmERP360 — User Manual
 
-**Version**: 1.0 | **Last Updated**: 2026-06-16  
+**Version**: 1.1 | **Last Updated**: 2026-06-25  
 **Platform**: Web (http://216.73.188.187:3000 or http://localhost)
 
 ---
@@ -440,16 +440,23 @@ To add an account: **Chart of Accounts** → **Add Account** → enter code, nam
 
 1. Go to **Journal Entries** → **New Entry**
 2. Add description and entry date
-3. Add debit and credit lines (must balance to zero)
-4. **Save as Draft** or **Post** immediately
-5. Posted entries update the General Ledger. Use **Void** to reverse a posted entry.
+3. Add debit and credit lines (must balance to zero — total debits must equal total credits)
+4. Click **Save as Draft** to save without posting, or **Post** to finalise immediately
+5. A **Posted** entry is permanent and updates the General Ledger and all financial statements
+6. Use **Void** to reverse a posted entry (creates an offsetting entry)
+
+> **Important**: Only **Posted** journal entries appear in the General Ledger, Trial Balance, P&L, and Balance Sheet. Draft entries are saved but invisible to all reports until posted.
 
 ### General Ledger
 
 1. Go to **General Ledger**
-2. Select an account from the dropdown
-3. View all transactions with running balance
-4. Filter by date range
+2. Select an account from the dropdown (all 43 chart of accounts are listed)
+3. Optionally set a **Date From** and **Date To** to narrow the period
+4. Click **View Ledger** to load transactions
+5. The table shows each posted entry's date, entry number, description, debit, credit, and running balance
+6. The closing balance is shown at the bottom
+
+> **Note**: If the ledger shows "No transactions found", either no journal entries have been posted to that account yet, or all entries fall outside the selected date range. Try clearing the date filters or posting a draft entry first.
 
 ### Trial Balance
 

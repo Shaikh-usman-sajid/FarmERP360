@@ -1,6 +1,6 @@
 # FarmERP360 — Business Workflows
 
-**Version**: 1.0 | **Last Updated**: 2026-06-16
+**Version**: 1.1 | **Last Updated**: 2026-06-25
 
 This document describes the standard operating workflows for each business process in FarmERP360.
 
@@ -433,6 +433,51 @@ On the last working day of the month:
 
 ## 10. Accounting Close Workflow
 
+### Journal Entry Lifecycle
+
+```
+Draft  →  Post  →  (Void if needed)
+
+1. Create entry:
+   → Accounting → Journal Entries → New Entry
+   → Add description, date, debit lines, credit lines
+   → Total debits MUST equal total credits (system enforces this)
+   → Click Save as Draft
+
+2. Review draft:
+   → Journal Entries list shows status = DRAFT
+   → Draft entries are NOT visible in General Ledger or any reports
+
+3. Post entry:
+   → Open the draft entry → click Post
+   → Status changes to POSTED
+   → Entry now appears in General Ledger, Trial Balance, P&L, Balance Sheet
+
+4. To reverse a mistake:
+   → Open posted entry → click Void
+   → A new offsetting entry is created automatically
+   → Original entry status changes to VOIDED
+
+Note: Only POSTED entries appear in the General Ledger.
+      If the ledger shows empty for an account, check that
+      entries exist AND have been posted.
+```
+
+### Viewing the General Ledger
+
+```
+Accountant / Owner:
+  → Accounting → General Ledger
+  → Select account from dropdown (e.g. "1010 — Bank - Main Account")
+  → Optionally set Date From and Date To
+  → Click View Ledger
+  → Table shows: date | entry # | description | debit | credit | running balance
+  → Closing balance shown at bottom
+
+Tip: If all accounts appear empty, post at least one journal entry first.
+     Draft entries are invisible to the ledger.
+```
+
 ### Month-End Close
 
 ```
@@ -442,9 +487,11 @@ Last day of month:
 □ 2. Record all vendor bills received this month
 □ 3. Verify feed consumption is recorded for all days
 □ 4. Process payroll (see Workflow 9)
-□ 5. Record depreciation journal entry (if applicable)
+□ 5. Record and POST depreciation journal entry (if applicable)
 □ 6. Reconcile bank balance:
-     → Compare bank statement with Cash account in General Ledger
+     → Accounting → General Ledger → select Bank - Main Account (1010)
+     → Set date range to current month
+     → Compare closing balance with bank statement
 □ 7. Review Trial Balance → Accounting → Trial Balance
      → Confirm debits = credits
 □ 8. Run Profit & Loss → Accounting → P&L
