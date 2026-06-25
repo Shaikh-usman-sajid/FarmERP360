@@ -8,9 +8,9 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 
 interface Account {
   id: string
-  code: string
-  name: string
-  type: string
+  account_code: string
+  account_name: string
+  account_type: string
 }
 
 interface LedgerEntry {
@@ -147,7 +147,7 @@ export default function GeneralLedgerPage() {
               </option>
               {accounts.map((acc) => (
                 <option key={acc.id} value={acc.id}>
-                  {acc.code} — {acc.name}
+                  {acc.account_code} — {acc.account_name}
                 </option>
               ))}
             </select>

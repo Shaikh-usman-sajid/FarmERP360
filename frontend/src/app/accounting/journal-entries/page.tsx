@@ -39,8 +39,8 @@ interface JournalEntryLine {
 
 interface Account {
   id: string
-  name: string
-  code: string
+  account_name: string
+  account_code: string
   account_type: string
 }
 
@@ -440,7 +440,7 @@ export default function JournalEntriesPage() {
                               <option value="">Select account</option>
                               {accounts.map((acc) => (
                                 <option key={acc.id} value={acc.id}>
-                                  {acc.code} — {acc.name}
+                                  {acc.account_code} — {acc.account_name}
                                 </option>
                               ))}
                             </select>

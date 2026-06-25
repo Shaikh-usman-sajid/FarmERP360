@@ -184,7 +184,7 @@ export default function InventoryPage() {
               <h2 className="text-lg font-bold">Stock Transaction</h2>
               <button onClick={() => setShowAddTx(false)} className="text-gray-400 text-xl">✕</button>
             </div>
-            <form onSubmit={e => { e.preventDefault(); const d: any = { ...txForm }; d.quantity = parseFloat(d.quantity); if (d.unit_cost) d.unit_cost = parseFloat(d.unit_cost); if (d.unit_cost) d.total_cost = d.quantity * d.unit_cost; createTx.mutate(d) }} className="p-5 space-y-4">
+            <form onSubmit={e => { e.preventDefault(); const d: any = { ...txForm }; d.quantity = parseFloat(d.quantity); if (d.unit_cost) { d.unit_cost = parseFloat(d.unit_cost); d.total_cost = d.quantity * d.unit_cost; } else { delete d.unit_cost; } if (!d.reference) delete d.reference; if (!d.notes) delete d.notes; createTx.mutate(d) }} className="p-5 space-y-4">
               <div>
                 <label className="label">Product *</label>
                 <select className="input" required value={txForm.product_id} onChange={e => setTxForm({ ...txForm, product_id: e.target.value })}>
