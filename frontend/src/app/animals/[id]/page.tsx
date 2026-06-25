@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
 import { useState } from 'react'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const FINANCIAL_ROLES = ['super_admin', 'owner', 'accountant']
 
@@ -139,24 +140,134 @@ export default function AnimalDetailPage() {
 
         {/* Weight Tracking */}
         <div className="card p-5">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">Weight History</h2>
-          <form onSubmit={e => { e.preventDefault(); if (!weightKg) return; addWeightMutation.mutate({ weight_kg: parseFloat(weightKg), recorded_date: weightDate, notes: weightNotes }) }} className="flex gap-3 mb-4 flex-wrap">
-            <input type="number" step="0.1" placeholder="Weight (kg)" required value={weightKg} onChange={e => setWeightKg(e.target.value)} className="input max-w-[140px]" />
-            <input type="date" value={weightDate} onChange={e => setWeightDate(e.target.value)} className="input max-w-[160px]" />
-            <input placeholder="Notes (optional)" value={weightNotes} onChange={e => setWeightNotes(e.target.value)} className="input flex-1 min-w-[160px]" />
-            <button type="submit" disabled={addWeightMutation.isPending} className="btn-primary text-sm">+ Record</button>
-          </form>
-          <div className="space-y-2 max-h-64 overflow-y-auto">
-            {(weights ?? []).length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-4">No weight records yet</p>
-            ) : (weights ?? []).map((w: any) => (
-              <div key={w.id} className="flex items-center justify-between bg-green-50 rounded-lg px-4 py-2">
-                <span className="text-sm text-gray-500">{w.recorded_date}</span>
-                <span className="font-semibold text-green-700">{w.weight_kg} kg</span>
-                {w.notes && <span className="text-xs text-gray-400 truncate max-w-[200px]">{w.notes}</span>}
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-gray-800">Weight History</h2>
           </div>
+
+          {/* Add weight inline form */}
+          <form
+            onSubmit={e => {
+              e.preventDefault()
+              if (!weightKg) return
+              addWeightMutation.mutate({ weight_kg: parseFloat(weightKg), recorded_date: weightDate, notes: weightNotes })
+            }}
+            className="flex gap-3 mb-5 flex-wrap"
+          >
+            <input type="number" step="0.1" placeholder="Weight (kg)" required value={weightKg}
+              onChange={e => setWeightKg(e.target.value)} className="input max-w-[140px]" />
+            <input type="date" value={weightDate}
+              onChange={e => setWeightDate(e.target.value)} className="input max-w-[160px]" />
+            <input placeholder="Notes (optional)" value={weightNotes}
+              onChange={e => setWeightNotes(e.target.value)} className="input flex-1 min-w-[160px]" />
+            <button type="submit" disabled={addWeightMutation.isPending} className="btn-primary text-sm whitespace-nowrap">
+              {addWeightMutation.isPending ? 'Saving...' : '+ Record'}
+            </button>
+          </form>
+
+          {(weights ?? []).length === 0 ? (
+            <p className="text-gray-400 text-sm text-center py-8">No weight records yet — add the first one above</p>
+          ) : (() => {
+            const wList: any[] = weights as any[]
+            const latest = parseFloat(wList[0].weight_kg)
+            const initial = parseFloat(wList[wList.length - 1].weight_kg)
+            const totalGain = latest - initial
+            const chartData = [...wList].reverse()
+
+            return (
+              <>
+                {/* Summary stats */}
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  {[
+                    { label: 'Initial', value: `${initial.toFixed(1)} kg` },
+                    { label: 'Current', value: `${latest.toFixed(1)} kg`, highlight: true },
+                    {
+                      label: 'Total Gain',
+                      value: `${totalGain >= 0 ? '+' : ''}${totalGain.toFixed(1)} kg`,
+                      gain: totalGain,
+                    },
+                  ].map(s => (
+                    <div key={s.label} className="bg-gray-50 rounded-lg p-3 text-center">
+                      <p className="text-xs text-gray-500 mb-1">{s.label}</p>
+                      <p className={`text-lg font-bold ${
+                        s.highlight ? 'text-green-700' :
+                        s.gain !== undefined ? (s.gain >= 0 ? 'text-green-600' : 'text-red-500') :
+                        'text-gray-900'
+                      }`}>
+                        {s.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Line chart — only if 2+ entries */}
+                {wList.length >= 2 && (
+                  <div className="mb-5">
+                    <p className="text-xs text-gray-500 font-medium mb-2">Weight Trend</p>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis
+                          dataKey="recorded_date"
+                          tickFormatter={d => d.slice(5)}
+                          tick={{ fontSize: 11 }}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11 }}
+                          unit="kg"
+                          domain={['auto', 'auto']}
+                        />
+                        <Tooltip formatter={(v: any) => [`${v} kg`, 'Weight']} />
+                        <Line
+                          type="monotone"
+                          dataKey="weight_kg"
+                          stroke="#16a34a"
+                          strokeWidth={2}
+                          dot={{ fill: '#16a34a', r: 4 }}
+                          activeDot={{ r: 6 }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* History table */}
+                <div className="border rounded overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-xs">
+                      <tr>
+                        <th className="text-left px-4 py-2">Date</th>
+                        <th className="text-right px-4 py-2">Weight (kg)</th>
+                        <th className="text-right px-4 py-2">Change</th>
+                        <th className="text-left px-4 py-2">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {wList.map((w: any, i: number) => {
+                        const prev = wList[i + 1]
+                        const change = prev ? parseFloat(w.weight_kg) - parseFloat(prev.weight_kg) : null
+                        return (
+                          <tr key={w.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="px-4 py-2.5">{w.recorded_date}</td>
+                            <td className="px-4 py-2.5 text-right font-semibold">
+                              {parseFloat(w.weight_kg).toFixed(1)}
+                            </td>
+                            <td className="px-4 py-2.5 text-right">
+                              {change !== null ? (
+                                <span className={change >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
+                                  {change >= 0 ? '+' : ''}{change.toFixed(1)}
+                                </span>
+                              ) : <span className="text-gray-400 text-xs">first</span>}
+                            </td>
+                            <td className="px-4 py-2.5 text-gray-500 text-xs">{w.notes || '—'}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )
+          })()}
         </div>
 
         {/* Recent Vaccinations */}
