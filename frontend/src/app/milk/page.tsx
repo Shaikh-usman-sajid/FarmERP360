@@ -65,8 +65,8 @@ export default function MilkPage() {
   })
 
   const { data: animals } = useQuery({
-    queryKey: ['animals-active'],
-    queryFn: () => animalsAPI.list({ per_page: 500, status: 'active' }).then(r => r.data.data),
+    queryKey: ['animals-milk-eligible'],
+    queryFn: () => animalsAPI.list({ per_page: 500, status: 'active', gender: 'female' }).then(r => r.data.data),
   })
 
   const createMutation = useMutation({

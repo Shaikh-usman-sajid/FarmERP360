@@ -51,12 +51,32 @@ def _animal_dict(animal: Animal, feed_cost: float, show_financials: bool) -> dic
     return d
 
 
+def _get_latest_weights(db: Session, animal_ids: list) -> dict:
+    if not animal_ids:
+        return {}
+    sub = (
+        db.query(AnimalWeight.animal_id, func.max(AnimalWeight.recorded_date).label("max_date"))
+        .filter(AnimalWeight.animal_id.in_(animal_ids))
+        .group_by(AnimalWeight.animal_id)
+        .subquery()
+    )
+    from sqlalchemy import and_
+    rows = (
+        db.query(AnimalWeight)
+        .join(sub, and_(AnimalWeight.animal_id == sub.c.animal_id,
+                        AnimalWeight.recorded_date == sub.c.max_date))
+        .all()
+    )
+    return {r.animal_id: r for r in rows}
+
+
 @router.get("")
 def list_animals(
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1, le=500),
     species: Optional[str] = None,
     status: Optional[str] = None,
+    gender: Optional[str] = None,
     ownership_type: Optional[str] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -67,6 +87,8 @@ def list_animals(
         query = query.filter(Animal.species == species)
     if status:
         query = query.filter(Animal.status == status)
+    if gender:
+        query = query.filter(Animal.gender == gender)
     if ownership_type:
         query = query.filter(Animal.ownership_type == ownership_type)
     if search:
@@ -80,9 +102,16 @@ def list_animals(
 
     animal_ids = [a.id for a in animals]
     feed_costs = _compute_feed_costs(db, animal_ids)
+    latest_weights = _get_latest_weights(db, animal_ids)
     show_financials = current_user.role in FINANCIAL_ROLES
 
-    items = [_animal_dict(a, feed_costs.get(a.id, 0.0), show_financials) for a in animals]
+    items = []
+    for a in animals:
+        d = _animal_dict(a, feed_costs.get(a.id, 0.0), show_financials)
+        w = latest_weights.get(a.id)
+        d["latest_weight_kg"] = float(w.weight_kg) if w else None
+        d["last_weighed_date"] = str(w.recorded_date) if w else None
+        items.append(d)
     return {"success": True, "data": {"total": total, "page": page, "per_page": per_page, "items": items}}
 
 
