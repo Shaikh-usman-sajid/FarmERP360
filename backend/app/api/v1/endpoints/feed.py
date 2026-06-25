@@ -202,20 +202,8 @@ def create_feed_consumption(
     )
     db.add(record)
 
-    # Auto-deduct from stock
+    # Deduct from stock
     ft.current_stock = max(Decimal("0"), (ft.current_stock or Decimal("0")) - qty)
-
-    # Also log an OUT stock transaction
-    out_tx = FeedStockTransaction(
-        organization_id=get_org(current_user),
-        feed_type_id=ft.id,
-        transaction_type=FeedTxType.OUT,
-        quantity=qty,
-        transaction_date=record.consumption_date,
-        notes=f"Consumption: {body.get('session', 'morning')} session",
-        created_by=current_user.id,
-    )
-    db.add(out_tx)
 
     db.commit()
     db.refresh(record)
@@ -259,7 +247,7 @@ def feed_summary(
         FeedType.is_active == True,
     ).all()
 
-    low_stock = [f for f in feed_types if (f.current_stock or 0) <= (f.min_stock_level or 0)]
+    low_stock = [f for f in feed_types if (f.min_stock_level or 0) > 0 and (f.current_stock or 0) <= (f.min_stock_level or 0)]
 
     # Total consumption last 30 days per feed type
     consumption_rows = (
@@ -305,7 +293,7 @@ def feed_summary(
             "current_stock": float(ft.current_stock or 0),
             "min_stock_level": float(ft.min_stock_level or 0),
             "consumed_30d": consumption_map.get(str(ft.id), 0),
-            "is_low": (ft.current_stock or 0) <= (ft.min_stock_level or 0),
+            "is_low": (ft.min_stock_level or 0) > 0 and (ft.current_stock or 0) <= (ft.min_stock_level or 0),
         }
         for ft in feed_types
     ]
@@ -344,7 +332,7 @@ def _feed_type_dict(ft: FeedType) -> dict:
         "suitable_for": ft.suitable_for,
         "description": ft.description,
         "is_active": ft.is_active,
-        "is_low_stock": (ft.current_stock or 0) <= (ft.min_stock_level or 0),
+        "is_low_stock": (ft.min_stock_level or 0) > 0 and (ft.current_stock or 0) <= (ft.min_stock_level or 0),
         "created_at": ft.created_at.isoformat() if ft.created_at else None,
     }
 

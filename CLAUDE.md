@@ -48,7 +48,8 @@ backend/app/
     health.py                # vaccinations, treatments, breeding records
     dairy.py                 # milk production, sales, daily summary
     inventory.py             # products, stock transactions
-    feed.py                  # feed types, stock IN/OUT, daily consumption
+    feed.py                  # feed types, stock IN/OUT/ADJUST, daily consumption
+                             #   (consumption deducts stock directly; no auto OUT tx created)
     agriculture.py           # fields, crop cycles, harvests
     employees.py             # employee CRUD, attendance
     tasks.py                 # task assign, start, complete, cancel

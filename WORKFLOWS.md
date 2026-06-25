@@ -226,14 +226,19 @@ Animal shows illness symptoms:
 
 ```
 Employee (morning or evening):
-  → Feed Management → Record Consumption
-  → Enter quantity consumed per feed type
-  → Stock level decreases automatically
+  → Feed Management → Record Consumption tab
+  → Choose mode:
+      Herd / Species  — for whole-herd feeding (Goat, Buffalo, Cattle, Other)
+      Individual Animal — for per-animal feeding
+  → Select feed type, quantity, session (Morning / Evening / Both), date
+  → Click Record Consumption → stock decreases automatically
+  → View / delete past entries on Consumption Log tab
 
 Farm Manager review:
-  → Feed Management → Summary tab
-  → Check days remaining per feed type
-  → Flag any type with < 7 days stock for reorder
+  → Feed Management → Overview tab
+  → Check current stock and 30-day usage per feed type
+  → LOW badge appears only on types with a minimum stock level configured
+  → Flag any type approaching its reorder level for purchase
 ```
 
 ### Feed Forecasting Review (Weekly)

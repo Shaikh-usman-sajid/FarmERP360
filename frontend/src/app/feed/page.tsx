@@ -8,7 +8,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 const TABS = ['Overview', 'Feed Types', 'Record Consumption', 'Stock History', 'Consumption Log'] as const
 type Tab = typeof TABS[number]
 
-const SPECIES = ['goat', 'buffalo', 'cow', 'sheep']
+const SPECIES = ['goat', 'buffalo', 'cattle', 'other']
 const SESSIONS = ['morning', 'evening', 'both']
 const TX_TYPES = ['in', 'out', 'adjustment']
 

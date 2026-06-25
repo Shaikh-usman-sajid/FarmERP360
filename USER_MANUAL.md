@@ -198,14 +198,20 @@ The dashboard shows a summary of key performance indicators (KPIs) for your role
 
 ### Recording Daily Consumption (Feed OUT)
 
-1. Click **Record Consumption**
-2. Select feed type, quantity consumed, date, notes
-3. Stock level decreases automatically
+1. Go to the **Record Consumption** tab
+2. Choose a recording mode:
+   - **Herd / Species** — record total consumption for a whole herd (select species: Goat, Buffalo, Cattle, or Other)
+   - **Individual Animal** — record consumption for a single animal (select from active animals list)
+3. Select **Feed Type**, enter **Quantity**, choose **Session** (Morning / Evening / Both), and set the **Date**
+4. Click **Record Consumption** — stock level decreases automatically
+5. View all past records on the **Consumption Log** tab; individual records can be deleted (stock is restored on delete)
+
+> **Note**: Consumption entries do not appear as manual stock transactions in Stock History. Use **Add / Adjust Feed Stock** on the same tab to record purchases or manual adjustments.
 
 ### Feed Summary
 
-- The **Summary** tab shows all feed types with current stock, daily usage, and days remaining
-- Items below reorder level are highlighted in red
+- The **Overview** tab shows all feed types with current stock, 30-day consumption, and a 6-month trend chart
+- A **LOW** badge appears only on feed types that have a minimum stock level configured **and** have dropped to or below that threshold
 
 ---
 
