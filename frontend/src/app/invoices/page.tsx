@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invoicesAPI, adminAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const today = new Date().toISOString().split('T')[0]
 const statusColors: any = { draft: 'badge-gray', sent: 'badge-info', paid: 'badge-active', overdue: 'badge-danger', cancelled: 'badge-gray' }
@@ -42,7 +43,29 @@ export default function InvoicesPage() {
           <h1 className="page-title">Invoices</h1>
           <p className="page-subtitle">{data?.total ?? 0} total</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">+ New Invoice</button>
+        <div className="flex items-center gap-2">
+          <ExportButtons
+            columns={[
+              { header: 'Invoice Number', key: 'Invoice Number' },
+              { header: 'Customer', key: 'Customer' },
+              { header: 'Date', key: 'Date' },
+              { header: 'Due Date', key: 'Due Date' },
+              { header: 'Amount (PKR)', key: 'Amount (PKR)' },
+              { header: 'Status', key: 'Status' },
+            ]}
+            rows={(data?.items ?? []).map((inv: any) => ({
+              'Invoice Number': inv.invoice_number,
+              Customer: inv.customer_name || '',
+              Date: inv.issue_date,
+              'Due Date': inv.due_date || '',
+              'Amount (PKR)': Number(inv.total_amount),
+              Status: inv.status,
+            }))}
+            filename="farmerp360-invoices"
+            title="Invoices"
+          />
+          <button onClick={() => setShowAdd(true)} className="btn-primary">+ New Invoice</button>
+        </div>
       </div>
 
       <div className="card overflow-hidden">

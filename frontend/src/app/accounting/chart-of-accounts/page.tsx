@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 type AccountType = 'asset' | 'liability' | 'equity' | 'revenue' | 'expense'
 
@@ -71,7 +72,25 @@ export default function ChartOfAccountsPage() {
           <h1 className="page-title">Chart of Accounts</h1>
           <p className="page-subtitle">{totalAccounts} accounts &mdash; {activeAccounts} active</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Account</button>
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Code', key: 'code' },
+              { header: 'Name', key: 'name' },
+              { header: 'Type', key: 'type' },
+              { header: 'Status', key: 'status' },
+            ]}
+            rows={(accounts ?? []).map(a => ({
+              code: a.account_code,
+              name: a.account_name,
+              type: TYPE_CONFIG[a.account_type]?.label.replace(/s$/, '') ?? a.account_type,
+              status: a.is_active ? 'Active' : 'Inactive',
+            }))}
+            filename="farmerp360-chart-of-accounts"
+            title="Chart of Accounts"
+          />
+          <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Account</button>
+        </div>
       </div>
 
       {/* Summary stat cards */}

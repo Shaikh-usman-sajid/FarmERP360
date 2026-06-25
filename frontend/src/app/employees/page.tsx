@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { employeesAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const emptyForm = { employee_code: '', full_name: '', cnic: '', phone: '', designation: '', department: '', join_date: '', monthly_salary: '' }
 
@@ -30,7 +31,31 @@ export default function EmployeesPage() {
           <h1 className="page-title">Employees</h1>
           <p className="page-subtitle">{data?.total ?? 0} employees</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Employee</button>
+        <div className="flex items-center gap-2">
+          <ExportButtons
+            columns={[
+              { header: 'Name', key: 'name' },
+              { header: 'Designation', key: 'designation' },
+              { header: 'Phone', key: 'phone' },
+              { header: 'CNIC', key: 'cnic' },
+              { header: 'Salary (PKR)', key: 'salary' },
+              { header: 'Join Date', key: 'join_date' },
+              { header: 'Status', key: 'status' },
+            ]}
+            rows={(data?.items ?? []).map((e: any) => ({
+              name: e.full_name,
+              designation: e.designation || '',
+              phone: e.phone || '',
+              cnic: e.cnic || '',
+              salary: e.monthly_salary ? Number(e.monthly_salary) : '',
+              join_date: e.join_date || '',
+              status: e.status,
+            }))}
+            filename="farmerp360-employees"
+            title="Employees"
+          />
+          <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Employee</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const today = new Date().toISOString().split('T')[0]
 
@@ -101,12 +102,32 @@ export default function TrialBalancePage() {
           <p className="page-subtitle">Accounting — summarised account balances at a point in time</p>
         </div>
         {hasItems && (
-          <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Print / Export
-          </button>
+          <div className="flex items-center gap-3">
+            <ExportButtons
+              columns={[
+                { header: 'Account Code', key: 'account_code' },
+                { header: 'Account Name', key: 'account_name' },
+                { header: 'Type', key: 'type' },
+                { header: 'Debit (PKR)', key: 'debit' },
+                { header: 'Credit (PKR)', key: 'credit' },
+              ]}
+              rows={(data?.items ?? []).map(item => ({
+                account_code: item.account_code,
+                account_name: item.account_name,
+                type: item.account_type,
+                debit: item.total_debit,
+                credit: item.total_credit,
+              }))}
+              filename="farmerp360-trial-balance"
+              title="Trial Balance"
+            />
+            <button onClick={handlePrint} className="btn-secondary flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print / Export
+            </button>
+          </div>
         )}
       </div>
 

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { healthAPI, animalsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
 
 const today = new Date().toISOString().split('T')[0]
@@ -55,7 +56,31 @@ export default function VaccinationPage() {
           <h1 className="page-title">Vaccination Records</h1>
           <p className="page-subtitle">{data?.total ?? 0} total records</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Vaccination</button>
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Animal', key: 'animal' },
+              { header: 'Vaccine', key: 'vaccine_name' },
+              { header: 'Date Administered', key: 'administered_date' },
+              { header: 'Next Due Date', key: 'next_due_date' },
+              { header: 'Dose', key: 'dose' },
+              { header: 'Administered By', key: 'administered_by' },
+              { header: 'Notes', key: 'notes' },
+            ]}
+            rows={(data?.items ?? []).map((v: any) => ({
+              animal: getAnimalCode(v.animal_id),
+              vaccine_name: v.vaccine_name,
+              administered_date: v.administered_date,
+              next_due_date: v.next_due_date || '',
+              dose: v.dose || '',
+              administered_by: v.administered_by || '',
+              notes: v.notes || '',
+            }))}
+            filename="farmerp360-vaccinations"
+            title="Vaccination Records"
+          />
+          <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Vaccination</button>
+        </div>
       </div>
 
       <div className="card overflow-hidden">

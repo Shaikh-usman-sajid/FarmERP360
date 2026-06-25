@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { agricultureAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
 
 const emptyField = { name: '', area_acres: '', soil_type: '', location_description: '' }
@@ -43,6 +44,25 @@ export default function AgriculturePage() {
 
   const getFieldName = (id: string) => fields?.items?.find((f: any) => f.id === id)?.name || 'Unknown'
 
+  const fieldRows = (fields?.items ?? []).map((f: any) => ({
+    name: f.name,
+    area_acres: f.area_acres ? parseFloat(f.area_acres).toFixed(1) : '',
+    soil_type: f.soil_type ?? '',
+    location_description: f.location_description ?? '',
+    status: 'Active',
+  }))
+
+  const cropRows = (crops?.items ?? []).map((c: any) => ({
+    field_name: getFieldName(c.field_id),
+    crop_name: c.crop_name,
+    variety: c.variety ?? '',
+    sowing_date: c.sowing_date ?? '',
+    expected_harvest_date: c.expected_harvest_date ?? '',
+    status: c.status,
+    expected_yield_kg: c.expected_yield_kg ? Number(c.expected_yield_kg).toLocaleString() : '',
+    actual_yield_kg: c.actual_yield_kg ? Number(c.actual_yield_kg).toLocaleString() : '',
+  }))
+
   return (
     <DashboardLayout>
       <div className="page-header">
@@ -50,7 +70,38 @@ export default function AgriculturePage() {
           <h1 className="page-title">Agriculture Management</h1>
           <p className="page-subtitle">Fields and crop cycles</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {tab === 'fields' && (
+            <ExportButtons
+              columns={[
+                { header: 'Field Name', key: 'name' },
+                { header: 'Area (Acres)', key: 'area_acres' },
+                { header: 'Soil Type', key: 'soil_type' },
+                { header: 'Location', key: 'location_description' },
+                { header: 'Status', key: 'status' },
+              ]}
+              rows={fieldRows}
+              filename="farmerp360-agriculture"
+              title="Agriculture"
+            />
+          )}
+          {tab === 'crops' && (
+            <ExportButtons
+              columns={[
+                { header: 'Field', key: 'field_name' },
+                { header: 'Crop', key: 'crop_name' },
+                { header: 'Variety', key: 'variety' },
+                { header: 'Sowing Date', key: 'sowing_date' },
+                { header: 'Expected Harvest', key: 'expected_harvest_date' },
+                { header: 'Status', key: 'status' },
+                { header: 'Expected Yield (kg)', key: 'expected_yield_kg' },
+                { header: 'Actual Yield (kg)', key: 'actual_yield_kg' },
+              ]}
+              rows={cropRows}
+              filename="farmerp360-agriculture"
+              title="Agriculture"
+            />
+          )}
           {tab === 'fields' ? (
             <button onClick={() => setShowAddField(true)} className="btn-primary">+ Add Field</button>
           ) : (

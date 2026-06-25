@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { paymentsAPI, invoicesAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const today = new Date().toISOString().split('T')[0]
 const emptyForm = { invoice_id: '', amount: '', payment_date: today, payment_method: 'cash', reference: '', notes: '' }
@@ -26,7 +27,27 @@ export default function PaymentsPage() {
     <DashboardLayout>
       <div className="page-header">
         <div><h1 className="page-title">Payments</h1><p className="page-subtitle">{data?.total ?? 0} payment records</p></div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">+ Record Payment</button>
+        <div className="flex items-center gap-2">
+          <ExportButtons
+            columns={[
+              { header: 'Payment Date', key: 'Payment Date' },
+              { header: 'Invoice Number', key: 'Invoice Number' },
+              { header: 'Amount (PKR)', key: 'Amount (PKR)' },
+              { header: 'Method', key: 'Method' },
+              { header: 'Reference', key: 'Reference' },
+            ]}
+            rows={(data?.items ?? []).map((p: any) => ({
+              'Payment Date': p.payment_date,
+              'Invoice Number': p.invoice_id ? p.invoice_id.slice(0, 8) + '...' : '',
+              'Amount (PKR)': Number(p.amount),
+              Method: p.payment_method || '',
+              Reference: p.reference || '',
+            }))}
+            filename="farmerp360-payments"
+            title="Payments"
+          />
+          <button onClick={() => setShowAdd(true)} className="btn-primary">+ Record Payment</button>
+        </div>
       </div>
 
       <div className="card overflow-hidden">

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { feedAPI, animalsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 const TABS = ['Overview', 'Feed Types', 'Record Consumption', 'Stock History', 'Consumption Log'] as const
@@ -81,12 +82,94 @@ export default function FeedPage() {
   const ftList: any[] = feedTypes.data || []
   const sv = summary.data
 
+  const feedTypeRows = ftList.map((ft: any) => ({
+    name: ft.name,
+    unit: ft.unit,
+    current_stock: ft.current_stock,
+    min_stock_level: ft.min_stock_level,
+    cost_per_unit: ft.cost_per_unit ?? '',
+    suitable_for: ft.suitable_for ?? '',
+    status: ft.is_active ? 'Active' : 'Inactive',
+  }))
+
+  const stockHistoryRows = (stockHistory.data || []).map((tx: any) => ({
+    date: tx.transaction_date,
+    feed_type: tx.feed_type_name,
+    type: tx.transaction_type.toUpperCase(),
+    quantity: tx.quantity,
+    unit_cost: tx.unit_cost ?? '',
+    total_cost: tx.total_cost ?? '',
+    reference: tx.reference ?? '',
+    notes: tx.notes ?? '',
+  }))
+
+  const consumptionRows = (consumptionLog.data || []).map((r: any) => ({
+    date: r.consumption_date,
+    feed_type: r.feed_type_name,
+    animal_or_species: r.animal_code ? r.animal_code : r.species ? `${r.species} (herd)` : '',
+    session: r.session,
+    quantity: r.quantity,
+    unit: r.feed_type_unit,
+    notes: r.notes ?? '',
+  }))
+
   return (
     <DashboardLayout>
       <div className="page-header">
         <div>
           <h1 className="page-title">Feed Management</h1>
           <p className="page-subtitle">Track feed inventory, consumption, and daily feeding records</p>
+        </div>
+        <div className="flex items-center gap-3">
+          {tab === 'Feed Types' && (
+            <ExportButtons
+              columns={[
+                { header: 'Feed Type', key: 'name' },
+                { header: 'Unit', key: 'unit' },
+                { header: 'Current Stock', key: 'current_stock' },
+                { header: 'Min Stock', key: 'min_stock_level' },
+                { header: 'Cost/Unit (PKR)', key: 'cost_per_unit' },
+                { header: 'Suitable For', key: 'suitable_for' },
+                { header: 'Status', key: 'status' },
+              ]}
+              rows={feedTypeRows}
+              filename="farmerp360-feed"
+              title="Feed Management"
+            />
+          )}
+          {tab === 'Stock History' && (
+            <ExportButtons
+              columns={[
+                { header: 'Date', key: 'date' },
+                { header: 'Feed Type', key: 'feed_type' },
+                { header: 'Type', key: 'type' },
+                { header: 'Quantity', key: 'quantity' },
+                { header: 'Unit Cost (PKR)', key: 'unit_cost' },
+                { header: 'Total Cost (PKR)', key: 'total_cost' },
+                { header: 'Reference', key: 'reference' },
+                { header: 'Notes', key: 'notes' },
+              ]}
+              rows={stockHistoryRows}
+              filename="farmerp360-feed"
+              title="Feed Management"
+            />
+          )}
+          {tab === 'Consumption Log' && (
+            <ExportButtons
+              columns={[
+                { header: 'Date', key: 'date' },
+                { header: 'Feed Type', key: 'feed_type' },
+                { header: 'Animal / Species', key: 'animal_or_species' },
+                { header: 'Session', key: 'session' },
+                { header: 'Quantity', key: 'quantity' },
+                { header: 'Unit', key: 'unit' },
+                { header: 'Notes', key: 'notes' },
+              ]}
+              rows={consumptionRows}
+              filename="farmerp360-feed"
+              title="Feed Management"
+            />
+          )}
         </div>
       </div>
 

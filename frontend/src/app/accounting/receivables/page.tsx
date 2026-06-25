@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -113,6 +114,40 @@ export default function ReceivablesPage() {
           <h1 className="page-title">Accounts Receivable</h1>
           <p className="page-subtitle">Aging Report — Open Customer Invoices</p>
         </div>
+        <ExportButtons
+          columns={[
+            { header: 'Customer', key: 'customer' },
+            { header: 'Invoice Number', key: 'invoice_number' },
+            { header: 'Amount (PKR)', key: 'amount' },
+            { header: 'Due Date', key: 'due_date' },
+            { header: 'Days Overdue', key: 'days_overdue' },
+            { header: 'Age Bucket', key: 'age_bucket' },
+          ]}
+          rows={invoices.map(inv => {
+            const outstanding = inv.outstanding !== undefined
+              ? Number(inv.outstanding)
+              : Number(inv.total_amount || 0) - Number(inv.paid_amount || 0)
+            const isOverdue = inv.status?.toLowerCase() === 'overdue'
+            const overdueDays = isOverdue ? daysOverdue(inv.due_date) : 0
+            let ageBucket = 'Current'
+            if (isOverdue) {
+              if (overdueDays <= 30) ageBucket = '1–30 days'
+              else if (overdueDays <= 60) ageBucket = '31–60 days'
+              else if (overdueDays <= 90) ageBucket = '61–90 days'
+              else ageBucket = '90+ days'
+            }
+            return {
+              customer: inv.customer_name || '',
+              invoice_number: inv.invoice_number || '',
+              amount: outstanding,
+              due_date: inv.due_date || '',
+              days_overdue: overdueDays,
+              age_bucket: ageBucket,
+            }
+          })}
+          filename="farmerp360-receivables"
+          title="Accounts Receivable"
+        />
       </div>
 
       {/* ── Summary Cards ── */}

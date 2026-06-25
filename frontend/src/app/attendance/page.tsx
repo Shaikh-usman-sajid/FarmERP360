@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { employeesAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const today = new Date().toISOString().split('T')[0]
 
@@ -39,7 +40,29 @@ export default function AttendancePage() {
           <h1 className="page-title">Attendance</h1>
           <p className="page-subtitle">Today: {presentToday} present, {absentToday} absent</p>
         </div>
-        <button onClick={() => setShowMark(true)} className="btn-primary">+ Mark Attendance</button>
+        <div className="flex items-center gap-2">
+          <ExportButtons
+            columns={[
+              { header: 'Employee Name', key: 'employee_name' },
+              { header: 'Date', key: 'date' },
+              { header: 'Status', key: 'status' },
+              { header: 'Check In', key: 'check_in' },
+              { header: 'Check Out', key: 'check_out' },
+              { header: 'Remarks', key: 'remarks' },
+            ]}
+            rows={(attendance?.items ?? []).map((a: any) => ({
+              employee_name: getEmpName(a.employee_id),
+              date: a.date,
+              status: a.status.replace('_', ' '),
+              check_in: a.check_in || '',
+              check_out: a.check_out || '',
+              remarks: a.notes || '',
+            }))}
+            filename="farmerp360-attendance"
+            title="Attendance Records"
+          />
+          <button onClick={() => setShowMark(true)} className="btn-primary">+ Mark Attendance</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4 mb-5">

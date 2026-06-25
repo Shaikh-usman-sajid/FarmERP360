@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { dairyAPI, animalsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import toast from 'react-hot-toast'
 
@@ -62,7 +63,29 @@ export default function MilkPage() {
           <h1 className="page-title">Milk Production</h1>
           <p className="page-subtitle">Today: {totalToday.toFixed(1)}L recorded</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">+ Record Milk</button>
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Date', key: 'production_date' },
+              { header: 'Animal ID', key: 'animal_id' },
+              { header: 'Session', key: 'session' },
+              { header: 'Quantity (L)', key: 'quantity_liters' },
+              { header: 'Fat %', key: 'fat_percentage' },
+              { header: 'Remarks', key: 'remarks' },
+            ]}
+            rows={(data?.items ?? []).map((m: any) => ({
+              production_date: m.production_date,
+              animal_id: m.animal_id,
+              session: m.session,
+              quantity_liters: parseFloat(m.quantity_liters).toFixed(2),
+              fat_percentage: m.fat_percentage ?? '',
+              remarks: m.remarks || '',
+            }))}
+            filename="farmerp360-milk"
+            title="Milk Production"
+          />
+          <button onClick={() => setShowAdd(true)} className="btn-primary">+ Record Milk</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

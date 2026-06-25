@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { pallaiAPI, animalsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const TABS = ['Overview', 'Customers', 'Packages', 'Subscriptions', 'Billing']
 
@@ -45,7 +46,47 @@ export default function PallaiPage() {
     <DashboardLayout>
       <div className="page-header">
         <h1 className="page-title">Pallai Management</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {activeTab === 'Customers' && (
+            <ExportButtons
+              columns={[
+                { header: 'Name', key: 'Name' },
+                { header: 'CNIC', key: 'CNIC' },
+                { header: 'Phone', key: 'Phone' },
+                { header: 'Address', key: 'Address' },
+                { header: 'Status', key: 'Status' },
+              ]}
+              rows={(customers as any[]).map((c: any) => ({
+                Name: c.full_name,
+                CNIC: c.cnic || '',
+                Phone: c.phone || '',
+                Address: c.address || '',
+                Status: c.is_active ? 'Active' : 'Inactive',
+              }))}
+              filename="farmerp360-pallai"
+              title="Pallai"
+            />
+          )}
+          {activeTab === 'Subscriptions' && (
+            <ExportButtons
+              columns={[
+                { header: 'Customer', key: 'Customer' },
+                { header: 'Package', key: 'Package' },
+                { header: 'Animal', key: 'Animal' },
+                { header: 'Start Date', key: 'Start Date' },
+                { header: 'Status', key: 'Status' },
+              ]}
+              rows={(subscriptions as any[]).map((s: any) => ({
+                Customer: s.customer_name || s.customer_id.slice(0, 8),
+                Package: s.package_name || '',
+                Animal: s.animal_name || '',
+                'Start Date': s.start_date,
+                Status: s.is_active ? 'Active' : 'Inactive',
+              }))}
+              filename="farmerp360-pallai"
+              title="Pallai"
+            />
+          )}
           {activeTab === 'Customers' && <button className="btn-primary" onClick={() => setShowAddCustomer(true)}>+ Add Customer</button>}
           {activeTab === 'Packages' && <button className="btn-primary" onClick={() => setShowAddPackage(true)}>+ Add Package</button>}
           {activeTab === 'Subscriptions' && <button className="btn-primary" onClick={() => setShowAddSubscription(true)}>+ Add Subscription</button>}

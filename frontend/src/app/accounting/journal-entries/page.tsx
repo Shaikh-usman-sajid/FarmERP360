@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import toast from 'react-hot-toast'
 import { useState } from 'react'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -230,12 +231,34 @@ export default function JournalEntriesPage() {
             <h1 className="text-2xl font-bold text-gray-900">Journal Entries</h1>
             <p className="text-sm text-gray-500 mt-1">Manage double-entry bookkeeping records</p>
           </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-          >
-            + New Journal Entry
-          </button>
+          <div className="flex items-center gap-3">
+            <ExportButtons
+              columns={[
+                { header: 'Entry Number', key: 'entry_number' },
+                { header: 'Date', key: 'date' },
+                { header: 'Description', key: 'description' },
+                { header: 'Status', key: 'status' },
+                { header: 'Total Debit (PKR)', key: 'total_debit' },
+                { header: 'Total Credit (PKR)', key: 'total_credit' },
+              ]}
+              rows={entries.map(e => ({
+                entry_number: e.entry_number,
+                date: e.entry_date,
+                description: e.description,
+                status: (statusConfig[e.status] ?? statusConfig.draft).label,
+                total_debit: e.total_debit,
+                total_credit: e.total_credit,
+              }))}
+              filename="farmerp360-journal-entries"
+              title="Journal Entries"
+            />
+            <button
+              onClick={() => setShowCreate(true)}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              + New Journal Entry
+            </button>
+          </div>
         </div>
 
         {/* Filter bar */}

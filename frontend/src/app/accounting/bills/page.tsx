@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const today = new Date().toISOString().split('T')[0]
 
@@ -153,9 +154,31 @@ export default function BillsPage() {
           <h1 className="page-title">Vendor Bills</h1>
           <p className="page-subtitle">Accounts Payable</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">
-          + New Bill
-        </button>
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Bill Number', key: 'bill_number' },
+              { header: 'Vendor', key: 'vendor' },
+              { header: 'Date', key: 'date' },
+              { header: 'Due Date', key: 'due_date' },
+              { header: 'Amount (PKR)', key: 'amount' },
+              { header: 'Status', key: 'status' },
+            ]}
+            rows={allBills.map(b => ({
+              bill_number: b.bill_number || '',
+              vendor: b.vendor_name || '',
+              date: b.bill_date || '',
+              due_date: b.due_date || '',
+              amount: Number(b.total_amount || 0),
+              status: b.status || 'draft',
+            }))}
+            filename="farmerp360-bills"
+            title="Vendor Bills"
+          />
+          <button onClick={() => setShowAdd(true)} className="btn-primary">
+            + New Bill
+          </button>
+        </div>
       </div>
 
       {/* ── Summary Cards ── */}

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { inventoryAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
 
 const today = new Date().toISOString().split('T')[0]
@@ -42,6 +43,25 @@ export default function InventoryPage() {
 
   const getProductName = (id: string) => products?.items?.find((p: any) => p.id === id)?.name || 'Unknown'
 
+  const productRows = (products?.items ?? []).map((p: any) => ({
+    name: p.name,
+    category: p.category ?? '',
+    unit: p.unit,
+    current_stock: parseFloat(p.current_stock).toFixed(1),
+    min_stock_level: p.min_stock_level ? parseFloat(p.min_stock_level).toFixed(1) : '',
+    unit_cost_pkr: p.unit_cost ? parseFloat(p.unit_cost).toLocaleString() : '',
+    status: parseFloat(p.current_stock) <= parseFloat(p.min_stock_level || '0') ? 'Low Stock' : 'OK',
+  }))
+
+  const transactionRows = (transactions?.items ?? []).map((t: any) => ({
+    product: getProductName(t.product_id),
+    type: t.transaction_type.toUpperCase(),
+    quantity: parseFloat(t.quantity).toFixed(2),
+    date: t.transaction_date,
+    reference: t.reference ?? '',
+    total_cost_pkr: t.total_cost ? Number(t.total_cost).toLocaleString() : '',
+  }))
+
   return (
     <DashboardLayout>
       <div className="page-header">
@@ -49,7 +69,38 @@ export default function InventoryPage() {
           <h1 className="page-title">Inventory Management</h1>
           <p className="page-subtitle">Feed, medicine, and supplies</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {tab === 'products' && (
+            <ExportButtons
+              columns={[
+                { header: 'Product', key: 'name' },
+                { header: 'Category', key: 'category' },
+                { header: 'Unit', key: 'unit' },
+                { header: 'Current Stock', key: 'current_stock' },
+                { header: 'Min Stock', key: 'min_stock_level' },
+                { header: 'Unit Cost (PKR)', key: 'unit_cost_pkr' },
+                { header: 'Status', key: 'status' },
+              ]}
+              rows={productRows}
+              filename="farmerp360-inventory"
+              title="Inventory"
+            />
+          )}
+          {tab === 'transactions' && (
+            <ExportButtons
+              columns={[
+                { header: 'Product', key: 'product' },
+                { header: 'Type', key: 'type' },
+                { header: 'Quantity', key: 'quantity' },
+                { header: 'Date', key: 'date' },
+                { header: 'Reference', key: 'reference' },
+                { header: 'Total Cost (PKR)', key: 'total_cost_pkr' },
+              ]}
+              rows={transactionRows}
+              filename="farmerp360-inventory"
+              title="Inventory"
+            />
+          )}
           <button onClick={() => setShowAddTx(true)} className="btn-secondary">+ Stock Transaction</button>
           <button onClick={() => setShowAddProduct(true)} className="btn-primary">+ Add Product</button>
         </div>

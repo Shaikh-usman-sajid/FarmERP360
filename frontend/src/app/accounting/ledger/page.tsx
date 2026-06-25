@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -132,6 +133,28 @@ export default function GeneralLedgerPage() {
           <h1 className="page-title">General Ledger</h1>
           <p className="page-subtitle">Accounting — view all transactions for a specific account</p>
         </div>
+        {hasLedger && !ledgerLoading && !ledgerError && ledgerData && hasEntries && (
+          <ExportButtons
+            columns={[
+              { header: 'Date', key: 'date' },
+              { header: 'Entry Number', key: 'entry_number' },
+              { header: 'Description', key: 'description' },
+              { header: 'Debit (PKR)', key: 'debit' },
+              { header: 'Credit (PKR)', key: 'credit' },
+              { header: 'Balance (PKR)', key: 'balance' },
+            ]}
+            rows={entries.map(e => ({
+              date: e.entry_date,
+              entry_number: e.entry_number || '',
+              description: e.description || '',
+              debit: e.debit,
+              credit: e.credit,
+              balance: e.balance,
+            }))}
+            filename="farmerp360-general-ledger"
+            title="General Ledger"
+          />
+        )}
       </div>
 
       {/* ── Controls ── */}

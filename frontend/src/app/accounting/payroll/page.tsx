@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -101,9 +102,29 @@ export default function PayrollPage() {
           <h1 className="page-title">Payroll</h1>
           <p className="page-subtitle">Manage monthly employee payroll processing</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
-          + Process Payroll
-        </button>
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Employee', key: 'employee' },
+              { header: 'Month', key: 'month' },
+              { header: 'Gross Salary (PKR)', key: 'gross_salary' },
+              { header: 'Deductions (PKR)', key: 'deductions' },
+              { header: 'Net Pay (PKR)', key: 'net_pay' },
+            ]}
+            rows={runs.map(r => ({
+              employee: `${MONTH_NAMES[(Number(r.month) - 1) % 12]} ${r.year} (${r.employee_count ?? 0} employees)`,
+              month: `${MONTH_NAMES[(Number(r.month) - 1) % 12]} ${r.year}`,
+              gross_salary: Number(r.total_gross ?? 0),
+              deductions: Number(r.total_gross ?? 0) - Number(r.total_net ?? 0),
+              net_pay: Number(r.total_net ?? 0),
+            }))}
+            filename="farmerp360-payroll"
+            title="Payroll"
+          />
+          <button onClick={() => setShowModal(true)} className="btn-primary">
+            + Process Payroll
+          </button>
+        </div>
       </div>
 
       {/* ── Summary cards ──────────────────────────────────────────────── */}

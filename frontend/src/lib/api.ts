@@ -214,7 +214,7 @@ export const accountingAPI = {
   getTrialBalance: (asOf?: string) => api.get('/accounting/trial-balance', { params: asOf ? { as_of: asOf } : {} }),
 
   // Vendors
-  getVendors: () => api.get('/accounting/vendors'),
+  getVendors: (params?: object) => api.get('/accounting/vendors', { params }),
   createVendor: (data: object) => api.post('/accounting/vendors', data),
   updateVendor: (id: string, data: object) => api.put(`/accounting/vendors/${id}`, data),
 
@@ -224,7 +224,7 @@ export const accountingAPI = {
   payBill: (id: string, amount: number) => api.put(`/accounting/bills/${id}/pay`, null, { params: { amount } }),
 
   // Payroll
-  getPayrollRuns: () => api.get('/accounting/payroll'),
+  getPayrollRuns: (params?: object) => api.get('/accounting/payroll', { params }),
   processPayroll: (data: object) => api.post('/accounting/payroll', data),
   getPayrollRun: (id: string) => api.get(`/accounting/payroll/${id}`),
 

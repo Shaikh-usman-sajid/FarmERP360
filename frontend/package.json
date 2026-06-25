@@ -9,24 +9,27 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.40.0",
+    "axios": "^1.7.2",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "next": "14.2.3",
     "react": "^18",
     "react-dom": "^18",
-    "axios": "^1.7.2",
-    "zustand": "^4.5.2",
-    "@tanstack/react-query": "^5.40.0",
+    "react-hot-toast": "^2.4.1",
     "recharts": "^2.12.7",
-    "react-hot-toast": "^2.4.1"
+    "xlsx": "^0.18.5",
+    "zustand": "^4.5.2"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "tailwindcss": "^3.4.1",
     "autoprefixer": "^10.0.1",
-    "postcss": "^8",
     "eslint": "^8",
-    "eslint-config-next": "14.2.3"
+    "eslint-config-next": "14.2.3",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5"
   }
 }

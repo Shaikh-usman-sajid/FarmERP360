@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const emptyForm = {
   vendor_code: '',
@@ -106,7 +107,29 @@ export default function VendorsPage() {
           <h1 className="page-title">Vendors / Suppliers</h1>
           <p className="page-subtitle">{total} total vendor{total !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={openAdd} className="btn-primary">+ Add Vendor</button>
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Name', key: 'name' },
+              { header: 'Contact', key: 'contact' },
+              { header: 'Email', key: 'email' },
+              { header: 'Phone', key: 'phone' },
+              { header: 'Payment Terms', key: 'payment_terms' },
+              { header: 'Balance (PKR)', key: 'balance' },
+            ]}
+            rows={vendors.map(v => ({
+              name: v.name || '',
+              contact: v.vendor_code || '',
+              email: v.email || '',
+              phone: v.phone || '',
+              payment_terms: v.payment_terms || '',
+              balance: v.outstanding_balance ?? v.balance ?? 0,
+            }))}
+            filename="farmerp360-vendors"
+            title="Vendors"
+          />
+          <button onClick={openAdd} className="btn-primary">+ Add Vendor</button>
+        </div>
       </div>
 
       {/* Search */}

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { animalsAPI, adminAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
 
 const SPECIES = ['goat', 'buffalo', 'cattle', 'other']
@@ -65,7 +66,35 @@ export default function AnimalsPage() {
           <h1 className="page-title">Animal Management</h1>
           <p className="page-subtitle">{data?.total ?? 0} animals registered</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Animal</button>
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Animal Code', key: 'animal_code' },
+              { header: 'Name', key: 'name' },
+              { header: 'Species', key: 'species' },
+              { header: 'Breed', key: 'breed' },
+              { header: 'Gender', key: 'gender' },
+              { header: 'Date of Birth', key: 'date_of_birth' },
+              { header: 'Status', key: 'status' },
+              { header: 'Ownership', key: 'ownership_type' },
+              { header: 'Purchase Price (PKR)', key: 'purchase_price' },
+            ]}
+            rows={(data?.items ?? []).map((a: any) => ({
+              animal_code: a.animal_code,
+              name: a.name || '',
+              species: a.species,
+              breed: a.breed || '',
+              gender: a.gender,
+              date_of_birth: a.date_of_birth || '',
+              status: a.status,
+              ownership_type: a.ownership_type,
+              purchase_price: a.purchase_price ?? '',
+            }))}
+            filename="farmerp360-animals"
+            title="Animals"
+          />
+          <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Animal</button>
+        </div>
       </div>
 
       {/* Filters */}

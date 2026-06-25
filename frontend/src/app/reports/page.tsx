@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { analyticsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, ComposedChart, Area, PieChart, Pie, Cell,
@@ -61,6 +62,121 @@ export default function ReportsPage() {
           <h1 className="page-title">Reports &amp; Analytics</h1>
           <p className="page-subtitle">Business intelligence across all farm operations</p>
         </div>
+        {tab === 'Milk' && (
+          <ExportButtons
+            columns={[
+              { header: 'Month', key: 'month' },
+              { header: 'Liters', key: 'liters' },
+              { header: 'Avg Daily (L)', key: 'avg_daily' },
+              { header: 'Revenue (PKR)', key: 'revenue' },
+            ]}
+            rows={milk.data ?? []}
+            filename="farmerp360-report-milk"
+            title="Milk Production Report"
+            disabled={!milk.data?.length}
+          />
+        )}
+        {tab === 'Cash Flow' && (
+          <ExportButtons
+            columns={[
+              { header: 'Month', key: 'month' },
+              { header: 'Income (PKR)', key: 'income' },
+              { header: 'Expenses (PKR)', key: 'expenses' },
+              { header: 'Net (PKR)', key: 'net' },
+            ]}
+            rows={cashFlow.data ?? []}
+            filename="farmerp360-report-cash-flow"
+            title="Cash Flow Analytics"
+            disabled={!cashFlow.data?.length}
+          />
+        )}
+        {tab === 'Farm Health' && (
+          <ExportButtons
+            columns={[
+              { header: 'Month', key: 'month' },
+              { header: 'Vaccinations', key: 'vaccinations' },
+              { header: 'Treatments', key: 'treatments' },
+              { header: 'Breeding Attempts', key: 'breeding_attempts' },
+            ]}
+            rows={farmHealth.data?.monthly ?? []}
+            filename="farmerp360-report-farm-health"
+            title="Farm Health Report"
+            disabled={!farmHealth.data?.monthly?.length}
+          />
+        )}
+        {tab === 'Animals' && (
+          <ExportButtons
+            columns={[
+              { header: 'Code', key: 'animal_code' },
+              { header: 'Name', key: 'name' },
+              { header: 'Species', key: 'species' },
+              { header: 'Breed', key: 'breed' },
+              { header: 'Milk Revenue (PKR)', key: 'milk_revenue' },
+              { header: 'Treatment Cost (PKR)', key: 'treatment_cost' },
+              { header: 'Vaccination Cost (PKR)', key: 'vaccination_cost' },
+              { header: 'Est. Profit (PKR)', key: 'estimated_profit' },
+            ]}
+            rows={animals.data ?? []}
+            filename="farmerp360-report-animals"
+            title="Animal Profitability Report"
+            disabled={!animals.data?.length}
+          />
+        )}
+        {tab === 'Inventory' && (
+          <ExportButtons
+            columns={[
+              { header: 'Product Name', key: 'product_name' },
+              { header: 'Current Stock', key: 'current_stock' },
+              { header: 'Min Stock Level', key: 'min_stock_level' },
+              { header: 'Deficit', key: 'deficit' },
+            ]}
+            rows={inventory.data?.low_stock_items ?? []}
+            filename="farmerp360-report-inventory-low-stock"
+            title="Inventory Low Stock Report"
+            disabled={!inventory.data?.low_stock_items?.length}
+          />
+        )}
+        {tab === 'Investors' && (
+          <ExportButtons
+            columns={[
+              { header: 'Investor', key: 'name' },
+              { header: 'Total Capital (PKR)', key: 'total_capital' },
+              { header: 'Total Distributed (PKR)', key: 'total_distributed' },
+              { header: 'ROI %', key: 'roi_pct' },
+            ]}
+            rows={investors.data?.investors ?? []}
+            filename="farmerp360-report-investors"
+            title="Investor Performance Report"
+            disabled={!investors.data?.investors?.length}
+          />
+        )}
+        {tab === 'Pallai' && (
+          <ExportButtons
+            columns={[
+              { header: 'Month', key: 'month' },
+              { header: 'Invoiced (PKR)', key: 'invoiced' },
+              { header: 'Collected (PKR)', key: 'collected' },
+            ]}
+            rows={pallai.data?.monthly_billing ?? []}
+            filename="farmerp360-report-pallai"
+            title="Pallai Billing Report"
+            disabled={!pallai.data?.monthly_billing?.length}
+          />
+        )}
+        {tab === 'Overview' && (
+          <ExportButtons
+            columns={[
+              { header: 'Month', key: 'month' },
+              { header: 'Liters', key: 'liters' },
+              { header: 'Avg Daily (L)', key: 'avg_daily' },
+              { header: 'Revenue (PKR)', key: 'revenue' },
+            ]}
+            rows={milk.data ?? []}
+            filename="farmerp360-report-overview"
+            title="Farm Overview Report"
+            disabled={!milk.data?.length}
+          />
+        )}
       </div>
 
       {/* Tab bar */}

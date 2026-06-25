@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import {
   BarChart,
   Bar,
@@ -212,28 +213,66 @@ export default function ProfitLossPage() {
             Accounting — income and expenses over a selected period
           </p>
         </div>
-        {hasData && (
-          <button
-            onClick={handlePrint}
-            className="btn-secondary flex items-center gap-2"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-4 h-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Category', key: 'category' },
+              { header: 'Account Name', key: 'account_name' },
+              { header: 'Amount (PKR)', key: 'amount' },
+            ]}
+            rows={
+              hasData && data
+                ? [
+                    ...data.revenue.map((item) => ({
+                      category: 'Revenue',
+                      account_name: item.account_name,
+                      amount: item.amount,
+                    })),
+                    { category: 'Revenue', account_name: 'Total Revenue', amount: data.total_revenue ?? 0 },
+                    ...data.cost_of_goods.map((item) => ({
+                      category: 'Cost of Goods Sold',
+                      account_name: item.account_name,
+                      amount: item.amount,
+                    })),
+                    { category: 'Cost of Goods Sold', account_name: 'Total Cost of Goods Sold', amount: data.total_cogs ?? 0 },
+                    { category: 'Summary', account_name: 'Gross Profit', amount: data.gross_profit ?? 0 },
+                    ...data.operating_expenses.map((item) => ({
+                      category: 'Operating Expenses',
+                      account_name: item.account_name,
+                      amount: item.amount,
+                    })),
+                    { category: 'Operating Expenses', account_name: 'Total Operating Expenses', amount: data.total_opex ?? 0 },
+                    { category: 'Summary', account_name: (data.net_profit ?? 0) >= 0 ? 'Net Profit' : 'Net Loss', amount: data.net_profit ?? 0 },
+                  ]
+                : []
+            }
+            filename="farmerp360-profit-loss"
+            title="Profit & Loss Statement"
+            disabled={!hasData}
+          />
+          {hasData && (
+            <button
+              onClick={handlePrint}
+              className="btn-secondary flex items-center gap-2"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-              />
-            </svg>
-            Print / Export
-          </button>
-        )}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                />
+              </svg>
+              Print
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter bar */}

@@ -5,6 +5,7 @@ import { tasksAPI, employeesAPI, animalsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { useAuthStore } from '@/store/authStore'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TABS = ['Dashboard', 'All Tasks', 'Create Task', 'My Tasks'] as const
@@ -175,9 +176,29 @@ export default function TasksPage() {
           <h1 className="page-title">Employee Tasks</h1>
           <p className="page-subtitle">Assign, track, and complete daily farm tasks</p>
         </div>
-        {isManager && (
-          <button className="btn-primary text-sm" onClick={() => setTab('Create Task')}>+ New Task</button>
-        )}
+        <div className="flex items-center gap-2">
+          <ExportButtons
+            columns={[
+              { header: 'Title', key: 'title' },
+              { header: 'Assigned To', key: 'assigned_to' },
+              { header: 'Due Date', key: 'due_date' },
+              { header: 'Priority', key: 'priority' },
+              { header: 'Status', key: 'status' },
+            ]}
+            rows={(allTasks.data || []).map((t: any) => ({
+              title: t.title,
+              assigned_to: t.assigned_to_name || 'Unassigned',
+              due_date: t.due_date || '',
+              priority: t.priority,
+              status: t.status.replace('_', ' '),
+            }))}
+            filename="farmerp360-tasks"
+            title="Tasks"
+          />
+          {isManager && (
+            <button className="btn-primary text-sm" onClick={() => setTab('Create Task')}>+ New Task</button>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}

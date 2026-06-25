@@ -13,6 +13,7 @@ interface Section {
   subsections: {
     heading: string
     content?: string
+    roles?: string[]
     steps?: Step[]
     fields?: { name: string; desc: string; required?: boolean }[]
     tip?: string

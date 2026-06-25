@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import {
   BarChart,
   Bar,
@@ -206,14 +207,53 @@ export default function CashFlowPage() {
             Accounting — cash inflows and outflows by activity type
           </p>
         </div>
-        {hasData && (
-          <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Print / Export
-          </button>
-        )}
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Section', key: 'section' },
+              { header: 'Description', key: 'description' },
+              { header: 'Amount (PKR)', key: 'amount' },
+            ]}
+            rows={
+              hasData && data
+                ? [
+                    ...data.operating_items.map((item) => ({
+                      section: 'Operating Activities',
+                      description: item.label,
+                      amount: item.amount,
+                    })),
+                    { section: 'Operating Activities', description: 'Net Cash from Operating Activities', amount: data.net_operating ?? 0 },
+                    ...data.investing_items.map((item) => ({
+                      section: 'Investing Activities',
+                      description: item.label,
+                      amount: item.amount,
+                    })),
+                    { section: 'Investing Activities', description: 'Net Cash from Investing Activities', amount: data.net_investing ?? 0 },
+                    ...data.financing_items.map((item) => ({
+                      section: 'Financing Activities',
+                      description: item.label,
+                      amount: item.amount,
+                    })),
+                    { section: 'Financing Activities', description: 'Net Cash from Financing Activities', amount: data.net_financing ?? 0 },
+                    { section: 'Summary', description: 'Net Increase / (Decrease) in Cash', amount: data.net_cash_change ?? 0 },
+                    { section: 'Summary', description: 'Cash & Bank Balance — Beginning of Period', amount: data.opening_cash ?? 0 },
+                    { section: 'Summary', description: 'Cash & Bank Balance — End of Period', amount: data.closing_cash ?? 0 },
+                  ]
+                : []
+            }
+            filename="farmerp360-cash-flow"
+            title="Cash Flow Statement"
+            disabled={!hasData}
+          />
+          {hasData && (
+            <button onClick={() => window.print()} className="btn-secondary flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+              Print
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter bar */}

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { healthAPI, animalsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
 
 const today = new Date().toISOString().split('T')[0]
@@ -43,7 +44,33 @@ export default function TreatmentsPage() {
           <h1 className="page-title">Treatment Records</h1>
           <p className="page-subtitle">{data?.total ?? 0} treatment records</p>
         </div>
-        <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Treatment</button>
+        <div className="flex items-center gap-3">
+          <ExportButtons
+            columns={[
+              { header: 'Animal', key: 'animal' },
+              { header: 'Diagnosis', key: 'diagnosis' },
+              { header: 'Treatment', key: 'treatment_description' },
+              { header: 'Medication', key: 'medicine_used' },
+              { header: 'Cost (PKR)', key: 'cost' },
+              { header: 'Vet', key: 'treated_by' },
+              { header: 'Date', key: 'treatment_date' },
+              { header: 'Status', key: 'status' },
+            ]}
+            rows={(data?.items ?? []).map((t: any) => ({
+              animal: getAnimalCode(t.animal_id),
+              diagnosis: t.diagnosis,
+              treatment_description: t.treatment_description || '',
+              medicine_used: t.medicine_used || '',
+              cost: t.cost ? Number(t.cost).toFixed(2) : '',
+              treated_by: t.treated_by || '',
+              treatment_date: t.treatment_date,
+              status: t.is_resolved ? 'Resolved' : 'Active',
+            }))}
+            filename="farmerp360-treatments"
+            title="Treatment Records"
+          />
+          <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Treatment</button>
+        </div>
       </div>
 
       <div className="card overflow-hidden">

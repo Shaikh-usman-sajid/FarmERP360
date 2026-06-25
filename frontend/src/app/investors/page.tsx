@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { investorsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 const TABS = ['Overview', 'Investors', 'Distributions', 'Reports']
 
@@ -40,7 +41,30 @@ export default function InvestorsPage() {
     <DashboardLayout>
       <div className="page-header">
         <h1 className="page-title">Investor Management</h1>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <ExportButtons
+            columns={[
+              { header: 'Name', key: 'name' },
+              { header: 'CNIC', key: 'cnic' },
+              { header: 'Phone', key: 'phone' },
+              { header: 'Profit Share %', key: 'profit_share' },
+              { header: 'Total Capital (PKR)', key: 'total_capital' },
+              { header: 'Total Distributed (PKR)', key: 'total_distributed' },
+            ]}
+            rows={(investors as any[]).map((inv: any) => {
+              const summaryRow = (summary?.investors ?? []).find((s: any) => s.investor_id === inv.id)
+              return {
+                name: inv.full_name,
+                cnic: inv.cnic || '',
+                phone: inv.phone || '',
+                profit_share: inv.profit_share_percentage,
+                total_capital: inv.total_capital ? Number(inv.total_capital) : 0,
+                total_distributed: summaryRow ? Number(summaryRow.total_distributed) : 0,
+              }
+            })}
+            filename="farmerp360-investors"
+            title="Investors"
+          />
           {activeTab === 'Investors' && <button className="btn-primary" onClick={() => setShowAddInvestor(true)}>+ Add Investor</button>}
           {activeTab === 'Investors' && <button className="btn-secondary" onClick={() => setShowAddCapital(true)}>+ Capital</button>}
           {activeTab === 'Distributions' && <button className="btn-primary" onClick={() => setShowAddDistribution(true)}>+ Distribution</button>}
