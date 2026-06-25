@@ -88,37 +88,63 @@ class AnimalCreate(BaseModel):
     date_of_birth: Optional[date] = None
     purchase_date: Optional[date] = None
     purchase_price: Optional[Decimal] = None
-    current_value: Optional[Decimal] = None
     ownership_type: OwnershipType = OwnershipType.FARM
     notes: Optional[str] = None
     farm_id: Optional[str] = None
+    initial_weight_kg: Optional[Decimal] = None
 
 
 class AnimalUpdate(BaseModel):
     name: Optional[str] = None
+    species: Optional[AnimalSpecies] = None
     breed: Optional[str] = None
-    current_value: Optional[Decimal] = None
     status: Optional[AnimalStatus] = None
     ownership_type: Optional[OwnershipType] = None
     notes: Optional[str] = None
     ear_tag: Optional[str] = None
+    rfid_tag: Optional[str] = None
+    purchase_date: Optional[date] = None
+    purchase_price: Optional[Decimal] = None
+    date_of_birth: Optional[date] = None
 
 
 class AnimalOut(BaseModel):
     id: str
     animal_code: str
     ear_tag: Optional[str]
+    rfid_tag: Optional[str]
     name: Optional[str]
     species: AnimalSpecies
     breed: Optional[str]
     gender: AnimalGender
     date_of_birth: Optional[date]
+    purchase_date: Optional[date]
     purchase_price: Optional[Decimal]
     current_value: Optional[Decimal]
+    feed_cost: Optional[Decimal] = None
     status: AnimalStatus
     ownership_type: OwnershipType
     farm_id: str
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ─── ANIMAL BREEDS ───────────────────────────────────────
+
+class AnimalBreedCreate(BaseModel):
+    name: str
+    species: Optional[str] = None
+    description: Optional[str] = None
+
+
+class AnimalBreedOut(BaseModel):
+    id: str
+    name: str
+    species: Optional[str]
+    description: Optional[str]
+    is_active: bool
 
     class Config:
         from_attributes = True
@@ -208,14 +234,27 @@ class MilkProductionCreate(BaseModel):
 class MilkProductionOut(BaseModel):
     id: str
     animal_id: str
+    animal_code: Optional[str] = None
+    animal_name: Optional[str] = None
+    animal_species: Optional[str] = None
     production_date: date
     session: MilkSession
     quantity_liters: Decimal
     fat_percentage: Optional[Decimal]
+    remarks: Optional[str]
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class MilkImportRow(BaseModel):
+    animal_code: str
+    production_date: date
+    session: str          # morning / evening / both
+    quantity_liters: Decimal
+    fat_percentage: Optional[Decimal] = None
+    remarks: Optional[str] = None
 
 
 class MilkSaleCreate(BaseModel):

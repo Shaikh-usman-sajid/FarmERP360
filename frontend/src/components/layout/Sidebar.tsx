@@ -110,6 +110,7 @@ const navGroups: NavGroup[] = [
     icon: '🛡️',
     items: [
       { label: 'Users', href: '/users', icon: '👤', roles: ['super_admin', 'owner'] },
+      { label: 'Animal Breeds', href: '/admin/breeds', icon: '🐄', roles: ['super_admin', 'owner'] },
       { label: 'Admin Settings', href: '/admin/settings', icon: '⚙️', roles: ['super_admin', 'owner'] },
     ],
   },

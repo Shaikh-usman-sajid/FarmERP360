@@ -2,7 +2,7 @@
 
 **Version**: 1.0  
 **Status**: In Progress — Phases 1–4, 6 & 7 (partial) complete; Phase 5 (Mobile) not started  
-**Last Reviewed**: 2026-06-16  
+**Last Reviewed**: 2026-06-25  
 **Project Type**: Cloud-Native SaaS Platform  
 **Source**: myscope.txt  
 
@@ -49,9 +49,13 @@ FarmERP360 is a scalable SaaS-ready platform covering:
 | Authentication & RBAC | ✅ | JWT, 9 roles, refresh tokens |
 | User Management | ✅ | CRUD, role filtering |
 | Farm Management | ✅ | Organization → Farm structure |
-| Animal Management | ✅ | CRUD, ear tag, RFID, species, status |
+| Animal Management | ✅ | CRUD, ear tag, RFID, species, status, breed dropdown, edit modal (owner/farm_manager), CSV bulk import |
+| Animal Breed Registry | ✅ | Per-org breed management (/admin/breeds), dropdown in animal forms, species filter |
+| Animal Current Value | ✅ | Dynamic: purchase_price + cumulative feed cost; purchase_price visible to owner/accountant only |
+| Animal QR Code Deep Link | ✅ | QR scan → /animals/[id] detail page (was: dashboard) |
+| Animal Detail Page | ✅ | /animals/[id]: weight history, vaccinations, treatments, milk records |
 | Animal Photos | ✅ | Upload, gallery |
-| Weight Tracking | ✅ | History per animal |
+| Weight Tracking | ✅ | History per animal; initial weight captured at registration |
 | Vaccination | ✅ | Schedule, due dates |
 | Treatment | ✅ | History, cost tracking |
 | Breeding Records | ✅ | Expected/actual delivery dates |
@@ -191,7 +195,7 @@ FarmERP360 is a scalable SaaS-ready platform covering:
 | WhatsApp Integration | ✅ | Meta Business Cloud API; test message, daily alerts, overdue alerts |
 | Easypaisa | ✅ | Merchant credentials config, signed payment form, webhook auto-marks paid |
 | JazzCash | ✅ | Merchant credentials config, HMAC-signed params, webhook auto-marks paid |
-| QR Codes | ✅ | Per-animal branded PNG QR code, download from animal list |
+| QR Codes | ✅ | Per-animal branded PNG QR code, download from animal list; scan links to /animals/[id] |
 | Admin Config Panel | ✅ | /admin/settings — org profile, preferences, integration keys, audit log viewer |
 | RFID | ❌ | Animal identification (requires hardware) |
 | Digital Weighing Scale | ❌ | Direct scale integration (requires hardware) |

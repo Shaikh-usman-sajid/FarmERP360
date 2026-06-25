@@ -67,6 +67,7 @@ export const animalsAPI = {
   create: (data: object) => api.post('/animals', data),
   update: (id: string, data: object) => api.put(`/animals/${id}`, data),
   delete: (id: string) => api.delete(`/animals/${id}`),
+  importBulk: (rows: object[]) => api.post('/animals/import', rows),
   getPhotos: (id: string) => api.get(`/animals/${id}/photos`),
   uploadPhoto: (id: string, file: File) => {
     const form = new FormData()
@@ -76,6 +77,13 @@ export const animalsAPI = {
   deletePhoto: (photoId: string) => api.delete(`/animals/photos/${photoId}`),
   getWeights: (id: string) => api.get(`/animals/${id}/weights`),
   addWeight: (id: string, data: object) => api.post(`/animals/${id}/weights`, data),
+}
+
+export const breedsAPI = {
+  list: (species?: string) => api.get('/admin/animal-breeds', { params: species ? { species } : {} }),
+  create: (data: object) => api.post('/admin/animal-breeds', data),
+  update: (id: string, data: object) => api.put(`/admin/animal-breeds/${id}`, data),
+  delete: (id: string) => api.delete(`/admin/animal-breeds/${id}`),
 }
 
 export const healthAPI = {
@@ -94,6 +102,7 @@ export const healthAPI = {
 export const dairyAPI = {
   listMilk: (params?: object) => api.get('/milk-productions', { params }),
   createMilk: (data: object) => api.post('/milk-productions', data),
+  importBulk: (rows: object[]) => api.post('/milk-productions/import', rows),
   updateMilk: (id: string, data: object) => api.put(`/milk-productions/${id}`, data),
   deleteMilk: (id: string) => api.delete(`/milk-productions/${id}`),
   dailySummary: (days?: number) => api.get('/milk-productions/summary/daily', { params: { days } }),

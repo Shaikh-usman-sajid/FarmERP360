@@ -17,8 +17,9 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, require_roles
 from app.models.models import (
     AuditLog, User, SystemSettings, Animal, Invoice, InvoiceStatus,
-    Vaccination, FeedType, FeedStockTransaction, UserRole
+    Vaccination, FeedType, FeedStockTransaction, UserRole, AnimalBreed, AnimalSpecies
 )
+from sqlalchemy import or_
 
 router = APIRouter(tags=["admin"])
 
@@ -208,7 +209,7 @@ def get_animal_qrcode(
         raise HTTPException(status_code=404, detail="Animal not found")
 
     label = animal.ear_tag or animal.animal_code or animal_id
-    qr_data = f"{base_url}/animals?id={animal_id}&tag={label}"
+    qr_data = f"{base_url}/animals/{animal_id}"
 
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
     qr.add_data(qr_data)
@@ -489,4 +490,87 @@ def jazzcash_webhook(payload: dict, db: Session = Depends(get_db)):
         if inv and inv.status != InvoiceStatus.PAID:
             inv.status = InvoiceStatus.PAID
             db.commit()
+    return {"success": True}
+
+
+# ─────────────────────────────────────────────
+# ANIMAL BREEDS
+# ─────────────────────────────────────────────
+
+@router.get("/admin/animal-breeds")
+def list_breeds(
+    species: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = db.query(AnimalBreed).filter(
+        AnimalBreed.organization_id == _org(current_user),
+        AnimalBreed.is_active == True,
+    )
+    if species:
+        q = q.filter(
+            or_(AnimalBreed.species == species, AnimalBreed.species == None)
+        )
+    breeds = q.order_by(AnimalBreed.name).all()
+    return {
+        "success": True,
+        "data": [
+            {"id": b.id, "name": b.name, "species": b.species, "description": b.description}
+            for b in breeds
+        ],
+    }
+
+
+@router.post("/admin/animal-breeds")
+def create_breed(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["super_admin", "owner"])),
+):
+    breed = AnimalBreed(
+        organization_id=_org(current_user),
+        name=payload["name"],
+        species=payload.get("species") or None,
+        description=payload.get("description"),
+    )
+    db.add(breed)
+    db.commit()
+    db.refresh(breed)
+    return {"success": True, "data": {"id": breed.id, "name": breed.name, "species": breed.species, "description": breed.description}}
+
+
+@router.put("/admin/animal-breeds/{breed_id}")
+def update_breed(
+    breed_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["super_admin", "owner"])),
+):
+    breed = db.query(AnimalBreed).filter(
+        AnimalBreed.id == breed_id,
+        AnimalBreed.organization_id == _org(current_user),
+    ).first()
+    if not breed:
+        raise HTTPException(404, "Breed not found")
+    for k in ("name", "species", "description"):
+        if k in payload:
+            setattr(breed, k, payload[k] or None if k == "species" else payload[k])
+    db.commit()
+    return {"success": True}
+
+
+@router.delete("/admin/animal-breeds/{breed_id}")
+def delete_breed(
+    breed_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["super_admin", "owner"])),
+):
+    breed = db.query(AnimalBreed).filter(
+        AnimalBreed.id == breed_id,
+        AnimalBreed.organization_id == _org(current_user),
+    ).first()
+    if not breed:
+        raise HTTPException(404, "Breed not found")
+    breed.is_active = False
+    db.commit()
     return {"success": True}

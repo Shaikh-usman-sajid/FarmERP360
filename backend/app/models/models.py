@@ -1075,6 +1075,25 @@ class Task(Base):
 
 
 # ─────────────────────────────────────────────
+# ANIMAL BREEDS
+# ─────────────────────────────────────────────
+
+class AnimalBreed(Base):
+    __tablename__ = "animal_breeds"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    species = Column(Enum(AnimalSpecies), nullable=True)
+    description = Column(Text)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('ix_animal_breeds_org_species', 'organization_id', 'species'),
+    )
+
+
+# ─────────────────────────────────────────────
 # SYSTEM SETTINGS
 # ─────────────────────────────────────────────
 
