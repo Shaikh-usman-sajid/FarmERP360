@@ -421,13 +421,18 @@ class MilkSale(Base):
     organization_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False, index=True)
     sale_date = Column(Date, nullable=False, index=True)
     buyer_name = Column(String(255))
+    vendor_id = Column(UUID(as_uuid=False), ForeignKey("vendors.id"), nullable=True, index=True)
     quantity_liters = Column(Numeric(8, 2), nullable=False)
     price_per_liter = Column(Numeric(8, 2), nullable=False)
     total_amount = Column(Numeric(12, 2), nullable=False)
+    payment_method = Column(String(20), default="cash")   # cash | credit
     payment_status = Column(String(50), default="paid")
+    journal_entry_id = Column(UUID(as_uuid=False), ForeignKey("journal_entries.id"), nullable=True)
     notes = Column(Text)
     created_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    vendor = relationship("Vendor", foreign_keys=[vendor_id])
 
 
 # ─────────────────────────────────────────────

@@ -260,9 +260,11 @@ class MilkImportRow(BaseModel):
 class MilkSaleCreate(BaseModel):
     sale_date: date
     buyer_name: Optional[str] = None
+    vendor_id: Optional[str] = None
     quantity_liters: Decimal
     price_per_liter: Decimal
-    total_amount: Decimal
+    total_amount: Optional[Decimal] = None  # auto-calculated if omitted
+    payment_method: str = "cash"            # cash | credit
     payment_status: str = "paid"
     notes: Optional[str] = None
 
@@ -271,10 +273,15 @@ class MilkSaleOut(BaseModel):
     id: str
     sale_date: date
     buyer_name: Optional[str]
+    vendor_id: Optional[str]
+    vendor_name: Optional[str] = None      # populated from relationship
     quantity_liters: Decimal
     price_per_liter: Decimal
     total_amount: Decimal
+    payment_method: Optional[str]
     payment_status: str
+    journal_entry_id: Optional[str] = None
+    notes: Optional[str] = None
     created_at: datetime
 
     class Config:

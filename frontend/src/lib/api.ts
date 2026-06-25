@@ -108,6 +108,8 @@ export const dairyAPI = {
   dailySummary: (days?: number) => api.get('/milk-productions/summary/daily', { params: { days } }),
   listSales: (params?: object) => api.get('/milk-sales', { params }),
   createSale: (data: object) => api.post('/milk-sales', data),
+  updateSale: (id: string, data: object) => api.put(`/milk-sales/${id}`, data),
+  deleteSale: (id: string) => api.delete(`/milk-sales/${id}`),
 }
 
 export const inventoryAPI = {

@@ -1,16 +1,28 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 from typing import Optional, List
 from datetime import date, timedelta
 from decimal import Decimal
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.models import MilkProduction, MilkSale, User, Farm, SystemSettings, Animal
-from sqlalchemy.orm import joinedload
-from app.schemas.schemas import MilkProductionCreate, MilkProductionOut, MilkSaleCreate, MilkSaleOut, MilkImportRow
+from app.models.models import (
+    MilkProduction, MilkSale, User, Farm, SystemSettings, Animal,
+    ChartOfAccount, JournalEntry, JournalEntryLine, Vendor,
+)
+from app.schemas.schemas import (
+    MilkProductionCreate, MilkProductionOut,
+    MilkSaleCreate, MilkSaleOut, MilkImportRow,
+)
 
 DEFAULT_MILK_PRICE = Decimal("120")
+
+router = APIRouter(tags=["Dairy"])
+milk_router = APIRouter(prefix="/milk-productions")
+sale_router = APIRouter(prefix="/milk-sales")
+
+
+def get_org(u): return u.organization_id
 
 
 def _get_milk_price(db: Session, org_id: str) -> Decimal:
@@ -23,14 +35,66 @@ def _get_milk_price(db: Session, org_id: str) -> Decimal:
     except Exception:
         return DEFAULT_MILK_PRICE
 
-router = APIRouter(tags=["Dairy"])
 
-milk_router = APIRouter(prefix="/milk-productions")
-sale_router = APIRouter(prefix="/milk-sales")
+def _get_account(db: Session, org_id: str, code: str):
+    return db.query(ChartOfAccount).filter(
+        ChartOfAccount.organization_id == org_id,
+        ChartOfAccount.account_code == code,
+        ChartOfAccount.is_active == True,
+    ).first()
 
 
-def get_org(u): return u.organization_id
+def _next_entry_number(db: Session, org_id: str) -> str:
+    n = db.query(func.count(JournalEntry.id)).filter(
+        JournalEntry.organization_id == org_id
+    ).scalar() or 0
+    return f"MS-{n + 1:04d}"
 
+
+def _create_sale_journal_entry(db: Session, sale: MilkSale, org_id: str, user_id: str):
+    """
+    Cash  → DR 1000 Cash in Hand,       CR 4000 Milk Sales Revenue
+    Credit→ DR 1100 Accounts Receivable, CR 4000 Milk Sales Revenue
+    """
+    debit_code = "1000" if sale.payment_method == "cash" else "1100"
+    debit_acc = _get_account(db, org_id, debit_code)
+    credit_acc = _get_account(db, org_id, "4000")
+
+    if not debit_acc or not credit_acc:
+        return None  # chart of accounts not set up — skip silently
+
+    entry = JournalEntry(
+        organization_id=org_id,
+        entry_number=_next_entry_number(db, org_id),
+        entry_date=sale.sale_date,
+        description=f"Milk sale — {sale.payment_method} — PKR {sale.total_amount}",
+        reference=str(sale.id),
+        status="posted",
+        total_debit=sale.total_amount,
+        total_credit=sale.total_amount,
+        created_by=user_id,
+    )
+    db.add(entry)
+    db.flush()
+
+    db.add(JournalEntryLine(
+        entry_id=entry.id,
+        account_id=debit_acc.id,
+        description=f"Milk sale ({sale.payment_method})",
+        debit_amount=sale.total_amount,
+        credit_amount=Decimal("0"),
+    ))
+    db.add(JournalEntryLine(
+        entry_id=entry.id,
+        account_id=credit_acc.id,
+        description="Milk sales revenue",
+        debit_amount=Decimal("0"),
+        credit_amount=sale.total_amount,
+    ))
+    return entry
+
+
+# ─── MILK PRODUCTION ───────────────────────────────────
 
 @milk_router.get("")
 def list_milk(
@@ -50,16 +114,21 @@ def list_milk(
     if date_to:
         query = query.filter(MilkProduction.production_date <= date_to)
     total = query.count()
-    items = (query.options(joinedload(MilkProduction.animal))
-             .order_by(MilkProduction.production_date.desc())
-             .offset((page-1)*per_page).limit(per_page).all())
+    items = (
+        query.options(joinedload(MilkProduction.animal))
+        .order_by(MilkProduction.production_date.desc())
+        .offset((page - 1) * per_page).limit(per_page).all()
+    )
 
     def _out(m: MilkProduction) -> dict:
         d = MilkProductionOut.from_orm(m).dict()
         if m.animal:
             d["animal_code"] = m.animal.animal_code
             d["animal_name"] = m.animal.name
-            d["animal_species"] = m.animal.species.value if hasattr(m.animal.species, 'value') else str(m.animal.species)
+            d["animal_species"] = (
+                m.animal.species.value if hasattr(m.animal.species, "value")
+                else str(m.animal.species)
+            )
         return d
 
     return {"success": True, "data": {"total": total, "items": [_out(m) for m in items]}}
@@ -80,21 +149,6 @@ def create_milk(
         **payload.dict()
     )
     db.add(m)
-    db.flush()
-
-    price = _get_milk_price(db, org_id)
-    qty = Decimal(str(payload.quantity_liters))
-    sale = MilkSale(
-        organization_id=org_id,
-        sale_date=payload.production_date,
-        quantity_liters=qty,
-        price_per_liter=price,
-        total_amount=qty * price,
-        payment_status="paid",
-        created_by=current_user.id,
-        notes=f"auto:{m.id}",
-    )
-    db.add(sale)
     db.commit()
     db.refresh(m)
     return {"success": True, "data": MilkProductionOut.from_orm(m)}
@@ -114,12 +168,18 @@ def daily_summary(
         MilkProduction.organization_id == get_org(current_user),
         MilkProduction.production_date >= from_date
     ).group_by(MilkProduction.production_date).order_by(MilkProduction.production_date).all()
-    return {"success": True, "data": [{"date": str(r.production_date), "total_liters": float(r.total_liters)} for r in results]}
+    return {"success": True, "data": [
+        {"date": str(r.production_date), "total_liters": float(r.total_liters)}
+        for r in results
+    ]}
 
 
 @milk_router.put("/{milk_id}")
 def update_milk(milk_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    m = db.query(MilkProduction).filter(MilkProduction.id == milk_id, MilkProduction.organization_id == get_org(current_user)).first()
+    m = db.query(MilkProduction).filter(
+        MilkProduction.id == milk_id,
+        MilkProduction.organization_id == get_org(current_user)
+    ).first()
     if not m:
         raise HTTPException(status_code=404, detail="Not found")
     for k, v in payload.items():
@@ -131,63 +191,13 @@ def update_milk(milk_id: str, payload: dict, db: Session = Depends(get_db), curr
 
 @milk_router.delete("/{milk_id}")
 def delete_milk(milk_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    m = db.query(MilkProduction).filter(MilkProduction.id == milk_id, MilkProduction.organization_id == get_org(current_user)).first()
+    m = db.query(MilkProduction).filter(
+        MilkProduction.id == milk_id,
+        MilkProduction.organization_id == get_org(current_user)
+    ).first()
     if not m:
         raise HTTPException(status_code=404, detail="Not found")
-    # remove the auto-generated sale linked to this production record
-    auto_sale = db.query(MilkSale).filter(
-        MilkSale.organization_id == get_org(current_user),
-        MilkSale.notes == f"auto:{milk_id}"
-    ).first()
-    if auto_sale:
-        db.delete(auto_sale)
     db.delete(m)
-    db.commit()
-    return {"success": True, "message": "Deleted"}
-
-
-# ─── MILK SALES ────────────────────────────────────────
-
-@sale_router.get("")
-def list_sales(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, le=100),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    query = db.query(MilkSale).filter(MilkSale.organization_id == get_org(current_user))
-    total = query.count()
-    items = query.order_by(MilkSale.sale_date.desc()).offset((page-1)*per_page).limit(per_page).all()
-    return {"success": True, "data": {"total": total, "items": [MilkSaleOut.from_orm(s) for s in items]}}
-
-
-@sale_router.post("")
-def create_sale(payload: MilkSaleCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    s = MilkSale(organization_id=get_org(current_user), created_by=current_user.id, **payload.dict())
-    db.add(s)
-    db.commit()
-    db.refresh(s)
-    return {"success": True, "data": MilkSaleOut.from_orm(s)}
-
-
-@sale_router.put("/{sale_id}")
-def update_sale(sale_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    s = db.query(MilkSale).filter(MilkSale.id == sale_id, MilkSale.organization_id == get_org(current_user)).first()
-    if not s:
-        raise HTTPException(status_code=404, detail="Not found")
-    for k, v in payload.items():
-        if hasattr(s, k):
-            setattr(s, k, v)
-    db.commit()
-    return {"success": True, "data": MilkSaleOut.from_orm(s)}
-
-
-@sale_router.delete("/{sale_id}")
-def delete_sale(sale_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    s = db.query(MilkSale).filter(MilkSale.id == sale_id, MilkSale.organization_id == get_org(current_user)).first()
-    if not s:
-        raise HTTPException(status_code=404, detail="Not found")
-    db.delete(s)
     db.commit()
     return {"success": True, "message": "Deleted"}
 
@@ -200,9 +210,7 @@ def import_milk(
 ):
     org_id = get_org(current_user)
     farm = db.query(Farm).filter(Farm.organization_id == org_id).first()
-    price = _get_milk_price(db, org_id)
 
-    # pre-build animal lookup: code → id
     codes = list({r.animal_code for r in payload})
     animals = db.query(Animal).filter(
         Animal.organization_id == org_id,
@@ -227,18 +235,6 @@ def import_milk(
             recorded_by=current_user.id,
         )
         db.add(m)
-        db.flush()
-        sale = MilkSale(
-            organization_id=org_id,
-            sale_date=row.production_date,
-            quantity_liters=qty,
-            price_per_liter=price,
-            total_amount=qty * price,
-            payment_status="paid",
-            created_by=current_user.id,
-            notes=f"auto:{m.id}",
-        )
-        db.add(sale)
 
     for i, row in enumerate(payload):
         animal_id = animal_map.get(row.animal_code)
@@ -262,6 +258,101 @@ def import_milk(
 
     db.commit()
     return {"success": True, "created": created, "skipped": skipped, "errors": errors}
+
+
+# ─── MILK SALES ────────────────────────────────────────
+
+def _sale_out(s: MilkSale) -> dict:
+    d = MilkSaleOut.from_orm(s).dict()
+    d["vendor_name"] = s.vendor.name if s.vendor else None
+    return d
+
+
+@sale_router.get("")
+def list_sales(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, le=100),
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    query = db.query(MilkSale).filter(MilkSale.organization_id == get_org(current_user))
+    if date_from:
+        query = query.filter(MilkSale.sale_date >= date_from)
+    if date_to:
+        query = query.filter(MilkSale.sale_date <= date_to)
+    total = query.count()
+    items = (
+        query.options(joinedload(MilkSale.vendor))
+        .order_by(MilkSale.sale_date.desc())
+        .offset((page - 1) * per_page).limit(per_page).all()
+    )
+    return {"success": True, "data": {"total": total, "items": [_sale_out(s) for s in items]}}
+
+
+@sale_router.post("")
+def create_sale(
+    payload: MilkSaleCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = get_org(current_user)
+    qty = Decimal(str(payload.quantity_liters))
+    price = Decimal(str(payload.price_per_liter))
+    total = payload.total_amount if payload.total_amount else qty * price
+
+    s = MilkSale(
+        organization_id=org_id,
+        sale_date=payload.sale_date,
+        buyer_name=payload.buyer_name,
+        vendor_id=payload.vendor_id,
+        quantity_liters=qty,
+        price_per_liter=price,
+        total_amount=total,
+        payment_method=payload.payment_method,
+        payment_status=payload.payment_status,
+        notes=payload.notes,
+        created_by=current_user.id,
+    )
+    db.add(s)
+    db.flush()
+
+    entry = _create_sale_journal_entry(db, s, org_id, current_user.id)
+    if entry:
+        s.journal_entry_id = entry.id
+
+    db.commit()
+    db.refresh(s)
+    return {"success": True, "data": _sale_out(s)}
+
+
+@sale_router.put("/{sale_id}")
+def update_sale(sale_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    s = db.query(MilkSale).filter(
+        MilkSale.id == sale_id,
+        MilkSale.organization_id == get_org(current_user)
+    ).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Not found")
+    for k, v in payload.items():
+        if hasattr(s, k):
+            setattr(s, k, v)
+    db.commit()
+    return {"success": True, "data": _sale_out(s)}
+
+
+@sale_router.delete("/{sale_id}")
+def delete_sale(sale_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    s = db.query(MilkSale).filter(
+        MilkSale.id == sale_id,
+        MilkSale.organization_id == get_org(current_user)
+    ).first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Not found")
+    db.delete(s)
+    db.commit()
+    return {"success": True, "message": "Deleted"}
 
 
 router.include_router(milk_router)
