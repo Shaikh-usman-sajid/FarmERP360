@@ -54,6 +54,8 @@ class OwnershipType(str, enum.Enum):
     INVESTOR = "investor"
     SHARED = "shared"
     PALLAI = "pallai"
+    PALLAI_WITH_ANIMAL = "pallai_with_animal"
+    INSTALLMENT = "installment"
 
 
 class MilkSession(str, enum.Enum):
@@ -247,6 +249,7 @@ class Animal(Base):
     current_value = Column(Numeric(12, 2))
     status = Column(Enum(AnimalStatus), default=AnimalStatus.ACTIVE, index=True)
     ownership_type = Column(Enum(OwnershipType), default=OwnershipType.FARM)
+    pallai_customer_id = Column(UUID(as_uuid=False), ForeignKey("customers.id"), nullable=True)
     notes = Column(Text)
     is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -259,6 +262,7 @@ class Animal(Base):
     )
 
     farm = relationship("Farm", back_populates="animals")
+    pallai_customer = relationship("Customer", foreign_keys=[pallai_customer_id])
     photos = relationship("AnimalPhoto", back_populates="animal", cascade="all, delete-orphan")
     weights = relationship("AnimalWeight", back_populates="animal", cascade="all, delete-orphan")
     ownerships = relationship("AnimalOwnership", back_populates="animal")
@@ -321,6 +325,21 @@ class AnimalOwnership(Base):
 # ─────────────────────────────────────────────
 # HEALTH
 # ─────────────────────────────────────────────
+
+class VaccineType(Base):
+    __tablename__ = "vaccine_types"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    species = Column(String(50), nullable=True)  # null = all species
+    type = Column(String(20), default="vaccine")  # vaccine | medicine
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index('ix_vaccine_types_org', 'organization_id', 'is_active'),
+    )
+
 
 class Vaccination(Base):
     __tablename__ = "vaccinations"

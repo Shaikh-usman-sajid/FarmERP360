@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { animalsAPI, adminAPI, breedsAPI } from '@/lib/api'
+import { animalsAPI, adminAPI, breedsAPI, customersAPI } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
@@ -10,12 +10,16 @@ import toast from 'react-hot-toast'
 const SPECIES = ['goat', 'buffalo', 'cattle', 'other']
 const STATUSES = ['active', 'sold', 'deceased', 'transferred']
 const GENDERS = ['male', 'female']
-const OWNERSHIP = ['farm', 'investor', 'shared', 'pallai']
+const OWNERSHIP = [
+  { value: 'farm', label: 'Farm' },
+  { value: 'pallai_with_animal', label: 'Pallai with Animal' },
+  { value: 'installment', label: 'Installment' },
+]
 
 const emptyForm = {
   animal_code: '', name: '', species: 'goat', breed: '', gender: 'female',
   date_of_birth: '', purchase_date: '', purchase_price: '',
-  initial_weight_kg: '', ownership_type: 'farm', notes: '',
+  initial_weight_kg: '', ownership_type: 'farm', pallai_customer_id: '', notes: '',
 }
 
 const FINANCIAL_ROLES = ['super_admin', 'owner', 'accountant']
@@ -99,6 +103,11 @@ export default function AnimalsPage() {
     queryFn: () => breedsAPI.list().then(r => r.data.data),
   })
 
+  const { data: pallaiCustomersData } = useQuery({
+    queryKey: ['customers-pallai-with-animal'],
+    queryFn: () => customersAPI.list({ per_page: 500, is_active: true }).then(r => r.data.data.items),
+  })
+
   const { data: weights } = useQuery({
     queryKey: ['weights', viewAnimal?.id],
     queryFn: () => animalsAPI.getWeights(viewAnimal.id).then(r => r.data.data),
@@ -149,6 +158,7 @@ export default function AnimalsPage() {
     else delete payload.purchase_price
     if (payload.initial_weight_kg) payload.initial_weight_kg = parseFloat(payload.initial_weight_kg)
     else delete payload.initial_weight_kg
+    if (!payload.pallai_customer_id) delete payload.pallai_customer_id
     createMutation.mutate(payload)
   }
 
@@ -160,6 +170,7 @@ export default function AnimalsPage() {
       breed: a.breed || '',
       status: a.status,
       ownership_type: a.ownership_type,
+      pallai_customer_id: a.pallai_customer_id || '',
       ear_tag: a.ear_tag || '',
       rfid_tag: a.rfid_tag || '',
       purchase_price: a.purchase_price ?? '',
@@ -259,6 +270,9 @@ export default function AnimalsPage() {
   const allBreeds = (breedsData ?? []) as any[]
   const addBreeds = allBreeds.filter(b => !b.species || b.species === form.species)
   const editBreeds = allBreeds.filter(b => !b.species || b.species === editForm.species)
+  const pallaiCustomers: any[] = (pallaiCustomersData ?? []).filter(
+    (c: any) => c.category_name && c.category_name.toLowerCase().includes('pallai with animal')
+  )
 
   return (
     <DashboardLayout>
@@ -329,9 +343,9 @@ export default function AnimalsPage() {
           </div>
           <div>
             <label className="label">Ownership</label>
-            <select className="input max-w-[140px]" value={ownership} onChange={e => { setOwnership(e.target.value); setPage(1) }}>
+            <select className="input max-w-[180px]" value={ownership} onChange={e => { setOwnership(e.target.value); setPage(1) }}>
               <option value="">All Ownership</option>
-              {OWNERSHIP.map(o => <option key={o} value={o}>{o}</option>)}
+              {OWNERSHIP.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
           <div>
@@ -474,11 +488,25 @@ export default function AnimalsPage() {
                 </div>
                 <div>
                   <label className="label">Ownership</label>
-                  <select className="input" value={form.ownership_type} onChange={e => setForm({ ...form, ownership_type: e.target.value })}>
-                    {OWNERSHIP.map(o => <option key={o} value={o}>{o}</option>)}
+                  <select className="input" value={form.ownership_type} onChange={e => setForm({ ...form, ownership_type: e.target.value, pallai_customer_id: '' })}>
+                    {OWNERSHIP.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
               </div>
+              {form.ownership_type === 'pallai_with_animal' && (
+                <div>
+                  <label className="label">Pallai Customer *</label>
+                  <select className="input" required={form.ownership_type === 'pallai_with_animal'} value={form.pallai_customer_id} onChange={e => setForm({ ...form, pallai_customer_id: e.target.value })}>
+                    <option value="">Select customer...</option>
+                    {pallaiCustomers.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ''}</option>
+                    ))}
+                  </select>
+                  {pallaiCustomers.length === 0 && (
+                    <p className="text-xs text-orange-500 mt-1">No customers with "Pallai with Animal" category found. Add them in Customer Categories first.</p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="label">Notes</label>
                 <textarea className="input" rows={2} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
@@ -531,8 +559,8 @@ export default function AnimalsPage() {
                 </div>
                 <div>
                   <label className="label">Ownership</label>
-                  <select className="input" value={editForm.ownership_type} onChange={e => setEditForm({ ...editForm, ownership_type: e.target.value })}>
-                    {OWNERSHIP.map(o => <option key={o} value={o}>{o}</option>)}
+                  <select className="input" value={editForm.ownership_type} onChange={e => setEditForm({ ...editForm, ownership_type: e.target.value, pallai_customer_id: '' })}>
+                    {OWNERSHIP.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
                 <div>
@@ -558,6 +586,17 @@ export default function AnimalsPage() {
                   </div>
                 )}
               </div>
+              {editForm.ownership_type === 'pallai_with_animal' && (
+                <div>
+                  <label className="label">Pallai Customer</label>
+                  <select className="input" value={editForm.pallai_customer_id || ''} onChange={e => setEditForm({ ...editForm, pallai_customer_id: e.target.value })}>
+                    <option value="">Select customer...</option>
+                    {pallaiCustomers.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className="label">Notes</label>
                 <textarea className="input" rows={2} value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} />

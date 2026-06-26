@@ -12,7 +12,7 @@ from app.models.models import (
 )
 from app.schemas.schemas import (
     MilkProductionCreate, MilkProductionOut,
-    MilkSaleCreate, MilkSaleOut, MilkImportRow,
+    MilkSaleCreate, MilkSaleOut, MilkImportRow, MilkSaleImportRow,
 )
 
 DEFAULT_MILK_PRICE = Decimal("120")
@@ -273,6 +273,48 @@ def _sale_out(s: MilkSale) -> dict:
     return d
 
 
+@sale_router.get("/summary")
+def sales_summary(
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    payment_method: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from datetime import date as date_cls
+    today = date_cls.today()
+    effective_from = date_from or today.replace(day=1)
+    effective_to   = date_to   or today
+
+    query = db.query(MilkSale).filter(
+        MilkSale.organization_id == get_org(current_user),
+        MilkSale.sale_date >= effective_from,
+        MilkSale.sale_date <= effective_to,
+    )
+    if payment_method:
+        query = query.filter(MilkSale.payment_method == payment_method)
+    if customer_id:
+        query = query.filter(MilkSale.customer_id == customer_id)
+
+    rows = query.all()
+    total_revenue  = sum(float(r.total_amount) for r in rows)
+    cash_revenue   = sum(float(r.total_amount) for r in rows if r.payment_method == "cash")
+    credit_revenue = sum(float(r.total_amount) for r in rows if r.payment_method == "credit")
+
+    return {
+        "success": True,
+        "data": {
+            "date_from":      str(effective_from),
+            "date_to":        str(effective_to),
+            "total_revenue":  total_revenue,
+            "cash_revenue":   cash_revenue,
+            "credit_revenue": credit_revenue,
+            "count":          len(rows),
+        }
+    }
+
+
 @sale_router.get("")
 def list_sales(
     page: int = Query(1, ge=1),
@@ -368,6 +410,52 @@ def delete_sale(sale_id: str, db: Session = Depends(get_db), current_user: User 
     db.delete(s)
     db.commit()
     return {"success": True, "message": "Deleted"}
+
+
+@sale_router.post("/import")
+def import_sales(
+    payload: List[MilkSaleImportRow],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    org_id = get_org(current_user)
+    created = skipped = 0
+    errors: list = []
+
+    for i, row in enumerate(payload):
+        pm = (row.payment_method or "cash").lower().strip()
+        if pm not in ("cash", "credit"):
+            errors.append(f"Row {i + 1}: Invalid payment_method '{row.payment_method}' — use cash/credit")
+            skipped += 1
+            continue
+
+        qty = Decimal(str(row.quantity_liters))
+        price = Decimal(str(row.price_per_liter))
+        total = qty * price
+
+        s = MilkSale(
+            organization_id=org_id,
+            sale_date=row.sale_date,
+            buyer_name=row.buyer_name or None,
+            quantity_liters=qty,
+            price_per_liter=price,
+            total_amount=total,
+            payment_method=pm,
+            payment_status="paid",
+            notes=row.notes or None,
+        )
+        db.add(s)
+        db.flush()
+
+        try:
+            _create_sale_journal_entry(db, s, org_id, current_user.id)
+        except Exception:
+            pass  # journal entry optional — don't fail the import
+
+        created += 1
+
+    db.commit()
+    return {"success": True, "created": created, "skipped": skipped, "errors": errors}
 
 
 router.include_router(milk_router)

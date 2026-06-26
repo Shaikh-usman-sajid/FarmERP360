@@ -106,10 +106,12 @@ export const dairyAPI = {
   updateMilk: (id: string, data: object) => api.put(`/milk-productions/${id}`, data),
   deleteMilk: (id: string) => api.delete(`/milk-productions/${id}`),
   dailySummary: (days?: number) => api.get('/milk-productions/summary/daily', { params: { days } }),
+  salesSummary: (params?: object) => api.get('/milk-sales/summary', { params }),
   listSales: (params?: object) => api.get('/milk-sales', { params }),
   createSale: (data: object) => api.post('/milk-sales', data),
   updateSale: (id: string, data: object) => api.put(`/milk-sales/${id}`, data),
   deleteSale: (id: string) => api.delete(`/milk-sales/${id}`),
+  importSalesBulk: (rows: object[]) => api.post('/milk-sales/import', rows),
 }
 
 export const inventoryAPI = {
@@ -294,6 +296,13 @@ export const customersAPI = {
   create: (data: object) => api.post('/customers', data),
   update: (id: string, data: object) => api.put(`/customers/${id}`, data),
   delete: (id: string) => api.delete(`/customers/${id}`),
+}
+
+export const vaccineTypesAPI = {
+  list: (params?: object) => api.get('/vaccine-types', { params }),
+  create: (data: object) => api.post('/vaccine-types', data),
+  update: (id: string, data: object) => api.put(`/vaccine-types/${id}`, data),
+  delete: (id: string) => api.delete(`/vaccine-types/${id}`),
 }
 
 export const adminAPI = {

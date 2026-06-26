@@ -20,6 +20,15 @@ const IMPORT_COLUMNS = [
   { key: 'remarks',         label: 'Remarks',      required: false, example: '' },
 ]
 
+const SALE_IMPORT_COLUMNS = [
+  { key: 'sale_date',       label: 'Date',          required: true,  example: '2026-06-25' },
+  { key: 'buyer_name',      label: 'Buyer Name',    required: false, example: 'Ali Dairy' },
+  { key: 'quantity_liters', label: 'Quantity (L)',  required: true,  example: '50' },
+  { key: 'price_per_liter', label: 'Price/L (PKR)', required: true,  example: '120' },
+  { key: 'payment_method',  label: 'Payment Method',required: false, example: 'cash' },
+  { key: 'notes',           label: 'Notes',         required: false, example: '' },
+]
+
 function parseCSV(text: string): Record<string, string>[] {
   const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean)
   if (lines.length < 2) return []
@@ -63,6 +72,10 @@ export default function MilkPage() {
   const [showSale, setShowSale] = useState(false)
   const [saleForm, setSaleForm] = useState(emptySale)
   const [salesPage, setSalesPage] = useState(1)
+  const [showSaleImport, setShowSaleImport] = useState(false)
+  const [saleImportRows, setSaleImportRows] = useState<any[]>([])
+  const [saleImportErrors, setSaleImportErrors] = useState<string[]>([])
+  const saleFileRef = useRef<HTMLInputElement>(null)
 
   const [saleFilter, setSaleFilter] = useState({ date_from: '', date_to: '', payment_method: '', customer_id: '' })
 
@@ -94,6 +107,17 @@ export default function MilkPage() {
     queryFn: () => dairyAPI.listSales({
       page: salesPage,
       per_page: 20,
+      ...(saleFilter.date_from      ? { date_from:       saleFilter.date_from }      : {}),
+      ...(saleFilter.date_to        ? { date_to:         saleFilter.date_to }        : {}),
+      ...(saleFilter.payment_method ? { payment_method:  saleFilter.payment_method } : {}),
+      ...(saleFilter.customer_id    ? { customer_id:     saleFilter.customer_id }    : {}),
+    }).then(r => r.data.data),
+    enabled: tab === 'sales',
+  })
+
+  const { data: salesSummaryData } = useQuery({
+    queryKey: ['milk-sales-summary', saleFilter],
+    queryFn: () => dairyAPI.salesSummary({
       ...(saleFilter.date_from      ? { date_from:       saleFilter.date_from }      : {}),
       ...(saleFilter.date_to        ? { date_to:         saleFilter.date_to }        : {}),
       ...(saleFilter.payment_method ? { payment_method:  saleFilter.payment_method } : {}),
@@ -149,6 +173,7 @@ export default function MilkPage() {
     mutationFn: (d: any) => dairyAPI.createSale(d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['milk-sales'] })
+      qc.invalidateQueries({ queryKey: ['milk-sales-summary'] })
       toast.success('Sale recorded with accounting entry!')
       setShowSale(false)
       setSaleForm(emptySale)
@@ -158,7 +183,30 @@ export default function MilkPage() {
 
   const deleteSaleMutation = useMutation({
     mutationFn: (id: string) => dairyAPI.deleteSale(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['milk-sales'] }); toast.success('Sale deleted') },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['milk-sales'] })
+      qc.invalidateQueries({ queryKey: ['milk-sales-summary'] })
+      toast.success('Sale deleted')
+    },
+  })
+
+  const importSalesMutation = useMutation({
+    mutationFn: (rows: any[]) => dairyAPI.importSalesBulk(rows),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['milk-sales'] })
+      qc.invalidateQueries({ queryKey: ['milk-sales-summary'] })
+      const { created, skipped, errors } = res.data
+      toast.success(`Imported ${created} sales${skipped ? `, ${skipped} skipped` : ''}`)
+      if (errors?.length) setSaleImportErrors(errors)
+      else { setShowSaleImport(false); setSaleImportRows([]) }
+    },
+    onError: (e: any) => {
+      const detail = e.response?.data?.detail
+      const msg = Array.isArray(detail)
+        ? detail.map((d: any) => `Row ${(d.loc?.[1] ?? 0) + 1}: ${d.msg}`).join('\n')
+        : (typeof detail === 'string' ? detail : 'Import failed')
+      toast.error(msg, { duration: 6000 })
+    },
   })
 
   // ── Handlers ── production ─────────────────────────
@@ -215,6 +263,38 @@ export default function MilkPage() {
     importMutation.mutate(mapped)
   }
 
+  // ── Handlers ── sale import ────────────────────────
+  const downloadSaleTemplate = () => {
+    const blob = new Blob([SALE_IMPORT_COLUMNS.map(c => c.label).join(',') + '\n' + SALE_IMPORT_COLUMNS.map(c => c.example).join(',')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = 'milk_sales_import_template.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleSaleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => { setSaleImportRows(parseCSV(ev.target?.result as string)); setSaleImportErrors([]) }
+    reader.readAsText(file)
+  }
+
+  const submitSaleImport = () => {
+    if (!saleImportRows.length) return
+    const mapped = saleImportRows.map(r => {
+      const obj: any = {}
+      SALE_IMPORT_COLUMNS.forEach(col => {
+        const val = ((r[col.label] || r[col.key]) ?? '').toString().trim()
+        if (!val) return
+        if (col.key === 'sale_date') { const iso = toISODate(val); if (iso) obj[col.key] = iso }
+        else if (col.key === 'quantity_liters' || col.key === 'price_per_liter') { const n = parseFloat(val); if (!isNaN(n)) obj[col.key] = n }
+        else if (col.key === 'payment_method') obj[col.key] = val.toLowerCase()
+        else obj[col.key] = val
+      })
+      return obj
+    })
+    importSalesMutation.mutate(mapped)
+  }
+
   // ── Handlers ── sales ──────────────────────────────
   const saleTotal = (() => {
     const q = parseFloat(saleForm.quantity_liters)
@@ -246,9 +326,12 @@ export default function MilkPage() {
   const totalToday = prodItems.filter((m: any) => m.production_date === today)
     .reduce((s: number, m: any) => s + parseFloat(m.quantity_liters), 0)
 
-  const totalRevenue  = salesItems.reduce((s: number, x: any) => s + parseFloat(x.total_amount), 0)
-  const cashRevenue   = salesItems.filter((x: any) => x.payment_method === 'cash').reduce((s: number, x: any) => s + parseFloat(x.total_amount), 0)
-  const creditRevenue = salesItems.filter((x: any) => x.payment_method === 'credit').reduce((s: number, x: any) => s + parseFloat(x.total_amount), 0)
+  const totalRevenue  = salesSummaryData?.total_revenue  ?? 0
+  const cashRevenue   = salesSummaryData?.cash_revenue   ?? 0
+  const creditRevenue = salesSummaryData?.credit_revenue ?? 0
+  const summaryLabel  = hasSaleFilter
+    ? 'Filtered'
+    : `${salesSummaryData?.date_from?.slice(0, 7) ?? 'This Month'}`
 
   const milkCustomers: any[] = (milkCustomersData ?? []).filter(
     (c: any) => c.category_name && c.category_name.toLowerCase().includes('milk')
@@ -299,6 +382,7 @@ export default function MilkPage() {
           )}
           {tab === 'sales' && (
             <>
+              <button onClick={() => setShowSaleImport(true)} className="btn-secondary">⬆ Import</button>
               <ExportButtons
                 columns={[
                   { header: 'Date',       key: 'sale_date' },
@@ -504,13 +588,16 @@ export default function MilkPage() {
           <div className="grid grid-cols-3 gap-4 mb-6">
             {[
               { label: 'Total Revenue',  value: `PKR ${totalRevenue.toLocaleString('en-PK')}`,  color: 'text-green-700', icon: '💰' },
-              { label: 'Cash Sales',    value: `PKR ${cashRevenue.toLocaleString('en-PK')}`,   color: 'text-blue-700',  icon: '💵', sub: '→ Cash in Hand' },
-              { label: 'Credit Sales',  value: `PKR ${creditRevenue.toLocaleString('en-PK')}`, color: 'text-orange-700',icon: '📋', sub: '→ Accounts Receivable' },
+              { label: 'Cash Sales',     value: `PKR ${cashRevenue.toLocaleString('en-PK')}`,   color: 'text-blue-700',  icon: '💵', sub: '→ Cash in Hand' },
+              { label: 'Credit Sales',   value: `PKR ${creditRevenue.toLocaleString('en-PK')}`, color: 'text-orange-700',icon: '📋', sub: '→ Accounts Receivable' },
             ].map(s => (
               <div key={s.label} className="card p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <span>{s.icon}</span>
-                  <p className="text-xs text-gray-500">{s.label}</p>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <span>{s.icon}</span>
+                    <p className="text-xs text-gray-500">{s.label}</p>
+                  </div>
+                  <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{summaryLabel}</span>
                 </div>
                 <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
                 {s.sub && <p className="text-xs text-gray-400 mt-1">{s.sub}</p>}
@@ -710,6 +797,55 @@ export default function MilkPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Sale Import Modal ───────────────────────── */}
+      {showSaleImport && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold">Import Sales from CSV</h2>
+              <button onClick={() => { setShowSaleImport(false); setSaleImportRows([]); setSaleImportErrors([]) }} className="text-gray-400 text-xl">✕</button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-blue-50 rounded-lg p-4 text-sm text-blue-800">
+                <p className="font-semibold mb-1">Instructions</p>
+                <p>Required: <span className="font-mono text-xs">Date, Quantity (L), Price/L (PKR)</span></p>
+                <p className="mt-1">Payment Method: <strong>cash</strong> (default) or <strong>credit</strong>. Date formats: <strong>YYYY-MM-DD</strong> or <strong>MM/DD/YYYY</strong>.</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={downloadSaleTemplate} className="btn-secondary text-sm">⬇ Template</button>
+                <button onClick={() => saleFileRef.current?.click()} className="btn-primary text-sm">📂 Choose CSV</button>
+                <input ref={saleFileRef} type="file" accept=".csv" className="hidden" onChange={handleSaleFileUpload} />
+              </div>
+              {saleImportRows.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">{saleImportRows.length} rows parsed</p>
+                  <div className="overflow-x-auto border rounded">
+                    <table className="text-xs w-full">
+                      <thead className="bg-gray-50"><tr>{Object.keys(saleImportRows[0]).map(k => <th key={k} className="px-2 py-1 text-left">{k}</th>)}</tr></thead>
+                      <tbody>
+                        {saleImportRows.slice(0, 5).map((r, i) => <tr key={i} className="border-t">{Object.values(r).map((v: any, j) => <td key={j} className="px-2 py-1">{v}</td>)}</tr>)}
+                        {saleImportRows.length > 5 && <tr><td colSpan={Object.keys(saleImportRows[0]).length} className="px-2 py-1 text-gray-400">…and {saleImportRows.length - 5} more</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {saleImportErrors.length > 0 && (
+                <div className="bg-red-50 rounded-lg p-3 space-y-1 max-h-40 overflow-y-auto">
+                  {saleImportErrors.map((e, i) => <p key={i} className="text-sm text-red-700">{e}</p>)}
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-2">
+                <button onClick={() => { setShowSaleImport(false); setSaleImportRows([]); setSaleImportErrors([]) }} className="btn-secondary">Cancel</button>
+                <button onClick={submitSaleImport} disabled={!saleImportRows.length || importSalesMutation.isPending} className="btn-primary">
+                  {importSalesMutation.isPending ? 'Importing...' : `Import ${saleImportRows.length} Rows`}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

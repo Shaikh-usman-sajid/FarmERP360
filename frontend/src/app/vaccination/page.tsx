@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { healthAPI, animalsAPI } from '@/lib/api'
+import { healthAPI, animalsAPI, vaccineTypesAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
@@ -54,6 +54,16 @@ export default function VaccinationPage() {
     queryKey: ['animals-all'],
     queryFn: () => animalsAPI.list({ per_page: 100 }).then(r => r.data.data),
   })
+
+  const { data: vaccineTypesData } = useQuery({
+    queryKey: ['vaccine-types-all'],
+    queryFn: () => vaccineTypesAPI.list().then(r => r.data.data),
+  })
+
+  const selectedAnimalSpecies = (animals?.items ?? []).find((a: any) => a.id === form.animal_id)?.species
+  const filteredVaccineTypes: any[] = (vaccineTypesData ?? []).filter(
+    (vt: any) => !vt.species || vt.species === selectedAnimalSpecies
+  )
 
   const createMutation = useMutation({
     mutationFn: (d: any) => healthAPI.createVaccination(d),
@@ -263,8 +273,17 @@ export default function VaccinationPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Vaccine Name *</label>
-                  <input className="input" required value={form.vaccine_name} onChange={e => setForm({ ...form, vaccine_name: e.target.value })} placeholder="e.g. FMD Vaccine" />
+                  <label className="label">Vaccine / Medicine Name *</label>
+                  {filteredVaccineTypes.length > 0 ? (
+                    <select className="input" required value={form.vaccine_name} onChange={e => setForm({ ...form, vaccine_name: e.target.value })}>
+                      <option value="">Select from list...</option>
+                      {filteredVaccineTypes.map((vt: any) => (
+                        <option key={vt.id} value={vt.name}>{vt.name} ({vt.type})</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input className="input" required value={form.vaccine_name} onChange={e => setForm({ ...form, vaccine_name: e.target.value })} placeholder="e.g. FMD Vaccine" />
+                  )}
                 </div>
                 <div>
                   <label className="label">Dose</label>

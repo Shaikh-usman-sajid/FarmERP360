@@ -21,6 +21,10 @@ export default function TreatmentsPage() {
   const [filterDateTo, setFilterDateTo] = useState('')
   const [filterVet, setFilterVet] = useState('')
 
+  const [viewTreatment, setViewTreatment] = useState<any>(null)
+  const [editTreatment, setEditTreatment] = useState<any>(null)
+  const [editForm, setEditForm] = useState<any>({})
+
   const hasFilter = !!(search || filterStatus || filterAnimal || filterDateFrom || filterDateTo || filterVet)
 
   const clearFilters = () => {
@@ -56,12 +60,53 @@ export default function TreatmentsPage() {
     onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
   })
 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: any) => healthAPI.updateTreatment(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['treatments'] })
+      toast.success('Treatment updated')
+      setEditTreatment(null)
+    },
+    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => healthAPI.deleteTreatment(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['treatments'] }); toast.success('Deleted') },
   })
 
   const getAnimalCode = (id: string) => animals?.items?.find((a: any) => a.id === id)?.animal_code || id.slice(0, 8)
+  const getAnimalName = (id: string) => animals?.items?.find((a: any) => a.id === id)?.name || ''
+
+  const openEdit = (t: any) => {
+    setEditTreatment(t)
+    setEditForm({
+      diagnosis: t.diagnosis || '',
+      treatment_description: t.treatment_description || '',
+      medicine_used: t.medicine_used || '',
+      treatment_date: t.treatment_date || today,
+      follow_up_date: t.follow_up_date || '',
+      treated_by: t.treated_by || '',
+      cost: t.cost ? String(t.cost) : '',
+      is_resolved: t.is_resolved || false,
+    })
+  }
+
+  const submitEdit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const payload: any = { ...editForm }
+    if (payload.cost) payload.cost = parseFloat(payload.cost)
+    else delete payload.cost
+    if (!payload.follow_up_date) delete payload.follow_up_date
+    updateMutation.mutate({ id: editTreatment.id, data: payload })
+  }
+
+  const treatmentItems: any[] = data?.items ?? []
+
+  // For view panel: treatments for the same animal
+  const animalTreatments = viewTreatment
+    ? treatmentItems.filter((t: any) => t.animal_id === viewTreatment.animal_id)
+    : []
 
   return (
     <DashboardLayout>
@@ -76,17 +121,15 @@ export default function TreatmentsPage() {
               { header: 'Animal', key: 'animal' },
               { header: 'Diagnosis', key: 'diagnosis' },
               { header: 'Treatment', key: 'treatment_description' },
-              { header: 'Medication', key: 'medicine_used' },
               { header: 'Cost (PKR)', key: 'cost' },
               { header: 'Vet', key: 'treated_by' },
               { header: 'Date', key: 'treatment_date' },
               { header: 'Status', key: 'status' },
             ]}
-            rows={(data?.items ?? []).map((t: any) => ({
+            rows={treatmentItems.map((t: any) => ({
               animal: getAnimalCode(t.animal_id),
               diagnosis: t.diagnosis,
               treatment_description: t.treatment_description || '',
-              medicine_used: t.medicine_used || '',
               cost: t.cost ? Number(t.cost).toFixed(2) : '',
               treated_by: t.treated_by || '',
               treatment_date: t.treatment_date,
@@ -105,7 +148,7 @@ export default function TreatmentsPage() {
             <label className="label">Search</label>
             <input
               className="input"
-              placeholder="Diagnosis or medicine..."
+              placeholder="Diagnosis..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -154,35 +197,214 @@ export default function TreatmentsPage() {
         <table className="w-full">
           <thead className="table-header">
             <tr>
-              {['Animal', 'Diagnosis', 'Treatment Date', 'Medicine', 'Cost (PKR)', 'Treated By', 'Status', 'Actions'].map(h => (
+              {['Animal', 'Diagnosis', 'Treatment Date', 'Cost (PKR)', 'Treated By', 'Status', 'Actions'].map(h => (
                 <th key={h} className="text-left px-4 py-3 text-xs">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {(data?.items ?? []).map((t: any) => (
+            {treatmentItems.map((t: any) => (
               <tr key={t.id} className="table-row">
                 <td className="table-cell font-mono font-semibold text-green-700">{getAnimalCode(t.animal_id)}</td>
                 <td className="table-cell font-medium">{t.diagnosis}</td>
                 <td className="table-cell">{t.treatment_date}</td>
-                <td className="table-cell">{t.medicine_used || '—'}</td>
                 <td className="table-cell">{t.cost ? Number(t.cost).toLocaleString() : '—'}</td>
                 <td className="table-cell">{t.treated_by || '—'}</td>
                 <td className="table-cell">
                   <span className={t.is_resolved ? 'badge-active' : 'badge-warning'}>{t.is_resolved ? 'Resolved' : 'Active'}</span>
                 </td>
                 <td className="table-cell">
-                  <button onClick={() => deleteMutation.mutate(t.id)} className="text-red-500 hover:text-red-700 text-xs">Delete</button>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setViewTreatment(t)}
+                      className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                    >
+                      View
+                    </button>
+                    <button
+                      onClick={() => openEdit(t)}
+                      className="text-green-600 hover:text-green-800 text-xs font-medium"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => deleteMutation.mutate(t.id)}
+                      className="text-red-500 hover:text-red-700 text-xs"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
-            {(data?.items ?? []).length === 0 && (
-              <tr><td colSpan={8} className="text-center py-12 text-gray-400">No treatment records</td></tr>
+            {treatmentItems.length === 0 && (
+              <tr><td colSpan={7} className="text-center py-12 text-gray-400">No treatment records</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
+      {/* ── View Treatment Panel ─────────────────────────────── */}
+      {viewTreatment && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-end sm:justify-end p-0 sm:p-4">
+          <div className="bg-white w-full sm:w-[860px] h-full sm:h-auto sm:max-h-[90vh] sm:rounded-xl flex overflow-hidden shadow-2xl">
+            {/* Left: animal treatment list */}
+            <div className="w-56 border-r bg-gray-50 flex flex-col flex-shrink-0">
+              <div className="p-4 border-b bg-white">
+                <p className="text-xs text-gray-500 uppercase tracking-wide font-semibold">Animal</p>
+                <p className="font-bold text-green-700 font-mono">{getAnimalCode(viewTreatment.animal_id)}</p>
+                {getAnimalName(viewTreatment.animal_id) && (
+                  <p className="text-xs text-gray-500">{getAnimalName(viewTreatment.animal_id)}</p>
+                )}
+              </div>
+              <div className="flex-1 overflow-y-auto">
+                <p className="text-xs text-gray-400 uppercase tracking-wide px-3 py-2 font-semibold">All Treatments</p>
+                {animalTreatments.map((t: any) => (
+                  <button
+                    key={t.id}
+                    onClick={() => setViewTreatment(t)}
+                    className={`w-full text-left px-3 py-2.5 border-b border-gray-100 hover:bg-green-50 transition-colors ${
+                      t.id === viewTreatment.id ? 'bg-green-50 border-l-2 border-l-green-600' : ''
+                    }`}
+                  >
+                    <p className="text-xs font-semibold text-gray-800 truncate">{t.diagnosis}</p>
+                    <p className="text-xs text-gray-400">{t.treatment_date}</p>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${t.is_resolved ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {t.is_resolved ? 'Resolved' : 'Active'}
+                    </span>
+                  </button>
+                ))}
+                {animalTreatments.length === 0 && (
+                  <p className="text-xs text-gray-400 px-3 py-4">No other treatments</p>
+                )}
+              </div>
+            </div>
+
+            {/* Right: treatment details */}
+            <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex items-center justify-between p-5 border-b">
+                <div>
+                  <h2 className="text-lg font-bold">Treatment Details</h2>
+                  <p className="text-xs text-gray-400">{viewTreatment.treatment_date}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => { openEdit(viewTreatment); setViewTreatment(null) }}
+                    className="btn-secondary text-xs"
+                  >
+                    Edit
+                  </button>
+                  <button onClick={() => setViewTreatment(null)} className="text-gray-400 text-xl ml-2">✕</button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-0.5">Diagnosis</p>
+                    <p className="font-semibold text-gray-900">{viewTreatment.diagnosis}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-0.5">Status</p>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${viewTreatment.is_resolved ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {viewTreatment.is_resolved ? 'Resolved' : 'Active'}
+                    </span>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-0.5">Treatment Date</p>
+                    <p className="font-medium">{viewTreatment.treatment_date}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-0.5">Follow-up Date</p>
+                    <p className="font-medium">{viewTreatment.follow_up_date || '—'}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-0.5">Treated By</p>
+                    <p className="font-medium">{viewTreatment.treated_by || '—'}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-0.5">Cost (PKR)</p>
+                    <p className="font-bold text-green-700">{viewTreatment.cost ? Number(viewTreatment.cost).toLocaleString('en-PK') : '—'}</p>
+                  </div>
+                </div>
+                {viewTreatment.treatment_description && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-0.5">Treatment Description</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{viewTreatment.treatment_description}</p>
+                  </div>
+                )}
+                {viewTreatment.medicine_used && (
+                  <div className="bg-gray-50 rounded-lg p-3">
+                    <p className="text-xs text-gray-500 mb-0.5">Medicine Used</p>
+                    <p className="text-sm text-gray-800">{viewTreatment.medicine_used}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Treatment Modal ─────────────────────────────── */}
+      {editTreatment && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold">Edit Treatment</h2>
+              <button onClick={() => setEditTreatment(null)} className="text-gray-400 text-xl">✕</button>
+            </div>
+            <form onSubmit={submitEdit} className="p-5 space-y-4">
+              <div>
+                <label className="label">Diagnosis *</label>
+                <input className="input" required value={editForm.diagnosis} onChange={e => setEditForm({ ...editForm, diagnosis: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Treatment Description</label>
+                <textarea className="input" rows={2} value={editForm.treatment_description} onChange={e => setEditForm({ ...editForm, treatment_description: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Medicine Used</label>
+                <input className="input" value={editForm.medicine_used} onChange={e => setEditForm({ ...editForm, medicine_used: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Treatment Date *</label>
+                  <input type="date" className="input" required value={editForm.treatment_date} onChange={e => setEditForm({ ...editForm, treatment_date: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Follow-up Date</label>
+                  <input type="date" className="input" value={editForm.follow_up_date} onChange={e => setEditForm({ ...editForm, follow_up_date: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Cost (PKR)</label>
+                  <input type="number" className="input" value={editForm.cost} onChange={e => setEditForm({ ...editForm, cost: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Treated By</label>
+                  <input className="input" value={editForm.treated_by} onChange={e => setEditForm({ ...editForm, treated_by: e.target.value })} />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="is_resolved"
+                  checked={editForm.is_resolved}
+                  onChange={e => setEditForm({ ...editForm, is_resolved: e.target.checked })}
+                  className="h-4 w-4 text-green-600 rounded"
+                />
+                <label htmlFor="is_resolved" className="text-sm text-gray-700">Mark as Resolved</label>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setEditTreatment(null)} className="btn-secondary">Cancel</button>
+                <button type="submit" disabled={updateMutation.isPending} className="btn-primary">
+                  {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Add Treatment Modal ─────────────────────────────── */}
       {showAdd && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">

@@ -89,6 +89,7 @@ class AnimalCreate(BaseModel):
     purchase_date: Optional[date] = None
     purchase_price: Optional[Decimal] = None
     ownership_type: OwnershipType = OwnershipType.FARM
+    pallai_customer_id: Optional[str] = None
     notes: Optional[str] = None
     farm_id: Optional[str] = None
     initial_weight_kg: Optional[Decimal] = None
@@ -100,6 +101,7 @@ class AnimalUpdate(BaseModel):
     breed: Optional[str] = None
     status: Optional[AnimalStatus] = None
     ownership_type: Optional[OwnershipType] = None
+    pallai_customer_id: Optional[str] = None
     notes: Optional[str] = None
     ear_tag: Optional[str] = None
     rfid_tag: Optional[str] = None
@@ -124,7 +126,28 @@ class AnimalOut(BaseModel):
     feed_cost: Optional[Decimal] = None
     status: AnimalStatus
     ownership_type: OwnershipType
+    pallai_customer_id: Optional[str] = None
     farm_id: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ─── VACCINE / MEDICINE TYPES ────────────────────────────
+
+class VaccineTypeCreate(BaseModel):
+    name: str
+    species: Optional[str] = None
+    type: str = "vaccine"
+
+
+class VaccineTypeOut(BaseModel):
+    id: str
+    name: str
+    species: Optional[str]
+    type: str
+    is_active: bool
     created_at: datetime
 
     class Config:
@@ -255,6 +278,15 @@ class MilkImportRow(BaseModel):
     quantity_liters: Decimal
     fat_percentage: Optional[Decimal] = None
     remarks: Optional[str] = None
+
+
+class MilkSaleImportRow(BaseModel):
+    sale_date: date
+    buyer_name: Optional[str] = None
+    quantity_liters: Decimal
+    price_per_liter: Decimal
+    payment_method: str = "cash"   # cash | credit
+    notes: Optional[str] = None
 
 
 class MilkSaleCreate(BaseModel):
