@@ -109,7 +109,7 @@ def _customer_out(c: Customer) -> dict:
 @router.get("/customers")
 def list_customers(
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, le=200),
+    per_page: int = Query(20, le=500),
     category_id: Optional[str] = None,
     search: Optional[str] = None,
     is_active: Optional[bool] = None,
