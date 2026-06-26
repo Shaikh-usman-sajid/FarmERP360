@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { investorsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
@@ -16,11 +16,20 @@ export default function InvestorsPage() {
   const [investorForm, setInvestorForm] = useState({ full_name: '', phone: '', email: '', cnic: '', address: '', profit_share_percentage: '33.33' })
   const [capitalForm, setCapitalForm] = useState({ investor_id: '', amount: '', contribution_date: '', type: 'deposit', notes: '' })
   const [distForm, setDistForm] = useState({ investor_id: '', amount: '', distribution_date: '', period: '', distribution_type: 'profit', notes: '' })
+
+  const [invSearch, setInvSearch] = useState('')
+  const [invStatus, setInvStatus] = useState('')
+
+  const [distInvestorId, setDistInvestorId] = useState('')
+  const [distType, setDistType] = useState('')
+  const [distDateFrom, setDistDateFrom] = useState('')
+  const [distDateTo, setDistDateTo] = useState('')
+
   const qc = useQueryClient()
 
   const { data: summaryData } = useQuery({ queryKey: ['investors-summary'], queryFn: () => investorsAPI.getSummary().then(r => r.data.data) })
-  const { data: investors = [] } = useQuery({ queryKey: ['investors'], queryFn: () => investorsAPI.list().then(r => r.data.data) })
-  const { data: distributions = [] } = useQuery({ queryKey: ['distributions'], queryFn: () => investorsAPI.listDistributions().then(r => r.data.data) })
+  const { data: investors = [] } = useQuery({ queryKey: ['investors', invSearch, invStatus], queryFn: () => investorsAPI.list({ search: invSearch || undefined, is_active: invStatus === '' ? undefined : invStatus === 'active' }).then(r => r.data.data) })
+  const { data: distributions = [] } = useQuery({ queryKey: ['distributions', distInvestorId, distType, distDateFrom, distDateTo], queryFn: () => investorsAPI.listDistributions({ investor_id: distInvestorId || undefined, distribution_type: distType || undefined, date_from: distDateFrom || undefined, date_to: distDateTo || undefined }).then(r => r.data.data) })
 
   const addInvestor = useMutation({
     mutationFn: (data: object) => investorsAPI.create(data),
@@ -37,41 +46,118 @@ export default function InvestorsPage() {
 
   const summary = summaryData as any
 
+  const hasInvFilter = !!(invSearch || invStatus)
+  const hasDistFilter = !!(distInvestorId || distType || distDateFrom || distDateTo)
+
+  const clearInvFilters = () => { setInvSearch(''); setInvStatus('') }
+  const clearDistFilters = () => { setDistInvestorId(''); setDistType(''); setDistDateFrom(''); setDistDateTo('') }
+
+  const filteredInvestors = useMemo(() => {
+    return (investors as any[]).filter((inv: any) => {
+      if (invSearch && !inv.full_name.toLowerCase().includes(invSearch.toLowerCase()) && !(inv.phone || '').includes(invSearch) && !(inv.cnic || '').includes(invSearch)) return false
+      if (invStatus === 'active' && !inv.is_active) return false
+      if (invStatus === 'inactive' && inv.is_active) return false
+      return true
+    })
+  }, [investors, invSearch, invStatus])
+
+  const filteredDistributions = useMemo(() => {
+    return (distributions as any[]).filter((d: any) => {
+      if (distInvestorId && d.investor_id !== distInvestorId) return false
+      if (distType && d.distribution_type !== distType) return false
+      if (distDateFrom && d.distribution_date < distDateFrom) return false
+      if (distDateTo && d.distribution_date > distDateTo) return false
+      return true
+    })
+  }, [distributions, distInvestorId, distType, distDateFrom, distDateTo])
+
   return (
     <DashboardLayout>
       <div className="page-header">
         <h1 className="page-title">Investor Management</h1>
         <div className="flex items-center gap-2">
-          <ExportButtons
-            columns={[
-              { header: 'Name', key: 'name' },
-              { header: 'CNIC', key: 'cnic' },
-              { header: 'Phone', key: 'phone' },
-              { header: 'Profit Share %', key: 'profit_share' },
-              { header: 'Total Capital (PKR)', key: 'total_capital' },
-              { header: 'Total Distributed (PKR)', key: 'total_distributed' },
-            ]}
-            rows={(investors as any[]).map((inv: any) => {
-              const summaryRow = (summary?.investors ?? []).find((s: any) => s.investor_id === inv.id)
-              return {
-                name: inv.full_name,
-                cnic: inv.cnic || '',
-                phone: inv.phone || '',
-                profit_share: inv.profit_share_percentage,
-                total_capital: inv.total_capital ? Number(inv.total_capital) : 0,
-                total_distributed: summaryRow ? Number(summaryRow.total_distributed) : 0,
-              }
-            })}
-            filename="farmerp360-investors"
-            title="Investors"
-          />
+          {activeTab === 'Investors' && (
+            <ExportButtons
+              columns={[
+                { header: 'Name', key: 'name' },
+                { header: 'CNIC', key: 'cnic' },
+                { header: 'Phone', key: 'phone' },
+                { header: 'Profit Share %', key: 'profit_share' },
+                { header: 'Total Capital (PKR)', key: 'total_capital' },
+                { header: 'Total Distributed (PKR)', key: 'total_distributed' },
+                { header: 'Status', key: 'status' },
+              ]}
+              rows={filteredInvestors.map((inv: any) => {
+                const summaryRow = (summary?.investors ?? []).find((s: any) => s.investor_id === inv.id)
+                return {
+                  name: inv.full_name,
+                  cnic: inv.cnic || '',
+                  phone: inv.phone || '',
+                  profit_share: inv.profit_share_percentage,
+                  total_capital: inv.total_capital ? Number(inv.total_capital) : 0,
+                  total_distributed: summaryRow ? Number(summaryRow.total_distributed) : 0,
+                  status: inv.is_active ? 'Active' : 'Inactive',
+                }
+              })}
+              filename="farmerp360-investors"
+              title="Investors"
+            />
+          )}
+          {activeTab === 'Distributions' && (
+            <ExportButtons
+              columns={[
+                { header: 'Investor', key: 'investor' },
+                { header: 'Date', key: 'date' },
+                { header: 'Period', key: 'period' },
+                { header: 'Amount (PKR)', key: 'amount' },
+                { header: 'Type', key: 'type' },
+                { header: 'Notes', key: 'notes' },
+              ]}
+              rows={filteredDistributions.map((d: any) => {
+                const inv = (investors as any[]).find((i: any) => i.id === d.investor_id)
+                return {
+                  investor: inv?.full_name || d.investor_id.slice(0, 8),
+                  date: d.distribution_date,
+                  period: d.period || '',
+                  amount: Number(d.amount),
+                  type: d.distribution_type,
+                  notes: d.notes || '',
+                }
+              })}
+              filename="farmerp360-distributions"
+              title="Distributions"
+            />
+          )}
+          {activeTab === 'Overview' && (
+            <ExportButtons
+              columns={[
+                { header: 'Investor', key: 'name' },
+                { header: 'Profit Share %', key: 'profit_share' },
+                { header: 'Capital Invested (PKR)', key: 'total_invested' },
+                { header: 'Distributed (PKR)', key: 'total_distributed' },
+                { header: 'ROI %', key: 'roi' },
+                { header: 'Net Position (PKR)', key: 'net_position' },
+                { header: 'Active Animals', key: 'animals' },
+              ]}
+              rows={(summary?.investors ?? []).map((row: any) => ({
+                name: row.full_name,
+                profit_share: row.profit_share_percentage,
+                total_invested: Number(row.total_invested),
+                total_distributed: Number(row.total_distributed),
+                roi: row.roi_percentage,
+                net_position: Number(row.net_position),
+                animals: row.active_animals,
+              }))}
+              filename="farmerp360-investor-summary"
+              title="Investor Summary"
+            />
+          )}
           {activeTab === 'Investors' && <button className="btn-primary" onClick={() => setShowAddInvestor(true)}>+ Add Investor</button>}
           {activeTab === 'Investors' && <button className="btn-secondary" onClick={() => setShowAddCapital(true)}>+ Capital</button>}
           {activeTab === 'Distributions' && <button className="btn-primary" onClick={() => setShowAddDistribution(true)}>+ Distribution</button>}
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-200 mb-6">
         {TABS.map(t => (
           <button key={t} onClick={() => setActiveTab(t)}
@@ -81,7 +167,62 @@ export default function InvestorsPage() {
         ))}
       </div>
 
-      {/* Overview */}
+      {activeTab === 'Investors' && (
+        <div className="card p-4 mb-5">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="label whitespace-nowrap">Search</label>
+              <input className="input w-48" placeholder="Name, phone, CNIC..." value={invSearch} onChange={e => setInvSearch(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="label whitespace-nowrap">Status</label>
+              <select className="input" value={invStatus} onChange={e => setInvStatus(e.target.value)}>
+                <option value="">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            {hasInvFilter && (
+              <button className="text-sm text-gray-500 hover:text-gray-700 font-medium" onClick={clearInvFilters}>✕ Clear</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'Distributions' && (
+        <div className="card p-4 mb-5">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <label className="label whitespace-nowrap">Investor</label>
+              <select className="input" value={distInvestorId} onChange={e => setDistInvestorId(e.target.value)}>
+                <option value="">All</option>
+                {(investors as any[]).map((i: any) => <option key={i.id} value={i.id}>{i.full_name}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="label whitespace-nowrap">Type</label>
+              <select className="input" value={distType} onChange={e => setDistType(e.target.value)}>
+                <option value="">All</option>
+                <option value="profit">Profit Share</option>
+                <option value="dividend">Dividend</option>
+                <option value="return">Capital Return</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="label whitespace-nowrap">From</label>
+              <input className="input" type="date" value={distDateFrom} onChange={e => setDistDateFrom(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="label whitespace-nowrap">To</label>
+              <input className="input" type="date" value={distDateTo} onChange={e => setDistDateTo(e.target.value)} />
+            </div>
+            {hasDistFilter && (
+              <button className="text-sm text-gray-500 hover:text-gray-700 font-medium" onClick={clearDistFilters}>✕ Clear</button>
+            )}
+          </div>
+        </div>
+      )}
+
       {activeTab === 'Overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -114,10 +255,9 @@ export default function InvestorsPage() {
         </div>
       )}
 
-      {/* Investors */}
       {activeTab === 'Investors' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {(investors as any[]).map((inv: any) => (
+          {filteredInvestors.map((inv: any) => (
             <div key={inv.id} className="card p-5">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center text-purple-700 font-bold text-xl">{inv.full_name[0]}</div>
@@ -134,36 +274,36 @@ export default function InvestorsPage() {
               <button className="w-full mt-3 text-xs text-purple-600 hover:text-purple-800 font-medium" onClick={() => { setCapitalForm(f => ({...f, investor_id: inv.id})); setShowAddCapital(true) }}>+ Add Capital</button>
             </div>
           ))}
-          {!(investors as any[]).length && <div className="col-span-3 card p-12 text-center text-gray-400">No investors yet</div>}
+          {!filteredInvestors.length && <div className="col-span-3 card p-12 text-center text-gray-400">No investors found</div>}
         </div>
       )}
 
-      {/* Distributions */}
       {activeTab === 'Distributions' && (
         <div className="card">
-          <table className="w-full text-sm">
-            <thead><tr className="border-b border-gray-100">{['Investor','Date','Period','Amount','Type','Notes'].map(h => <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
-            <tbody>
-              {(distributions as any[]).map((d: any) => {
-                const inv = (investors as any[]).find((i: any) => i.id === d.investor_id)
-                return (
-                  <tr key={d.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="py-3 px-4 font-medium text-gray-900">{inv?.full_name || d.investor_id.slice(0,8)}</td>
-                    <td className="py-3 px-4 text-gray-500">{d.distribution_date}</td>
-                    <td className="py-3 px-4 text-gray-500">{d.period || '—'}</td>
-                    <td className="py-3 px-4 font-semibold text-green-700">PKR {Number(d.amount).toLocaleString()}</td>
-                    <td className="py-3 px-4"><span className="badge-info">{d.distribution_type}</span></td>
-                    <td className="py-3 px-4 text-gray-500">{d.notes || '—'}</td>
-                  </tr>
-                )
-              })}
-              {!(distributions as any[]).length && <tr><td colSpan={6} className="py-8 text-center text-gray-400">No distributions recorded yet</td></tr>}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-b border-gray-100">{['Investor','Date','Period','Amount','Type','Notes'].map(h => <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+              <tbody>
+                {filteredDistributions.map((d: any) => {
+                  const inv = (investors as any[]).find((i: any) => i.id === d.investor_id)
+                  return (
+                    <tr key={d.id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-3 px-4 font-medium text-gray-900">{inv?.full_name || d.investor_id.slice(0,8)}</td>
+                      <td className="py-3 px-4 text-gray-500">{d.distribution_date}</td>
+                      <td className="py-3 px-4 text-gray-500">{d.period || '—'}</td>
+                      <td className="py-3 px-4 font-semibold text-green-700">PKR {Number(d.amount).toLocaleString()}</td>
+                      <td className="py-3 px-4"><span className="badge-info">{d.distribution_type}</span></td>
+                      <td className="py-3 px-4 text-gray-500">{d.notes || '—'}</td>
+                    </tr>
+                  )
+                })}
+                {!filteredDistributions.length && <tr><td colSpan={6} className="py-8 text-center text-gray-400">No distributions found</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Reports */}
       {activeTab === 'Reports' && (
         <div className="space-y-6">
           <div className="card p-5">
@@ -199,7 +339,6 @@ export default function InvestorsPage() {
         </div>
       )}
 
-      {/* Add Investor Modal */}
       {showAddInvestor && (
         <div className="modal-overlay" onClick={() => setShowAddInvestor(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -222,7 +361,6 @@ export default function InvestorsPage() {
         </div>
       )}
 
-      {/* Add Capital Modal */}
       {showAddCapital && (
         <div className="modal-overlay" onClick={() => setShowAddCapital(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
@@ -250,7 +388,6 @@ export default function InvestorsPage() {
         </div>
       )}
 
-      {/* Add Distribution Modal */}
       {showAddDistribution && (
         <div className="modal-overlay" onClick={() => setShowAddDistribution(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>

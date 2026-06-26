@@ -8,7 +8,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.models import (
     MilkProduction, MilkSale, User, Farm, SystemSettings, Animal,
-    ChartOfAccount, JournalEntry, JournalEntryLine, Vendor,
+    ChartOfAccount, JournalEntry, JournalEntryLine, Vendor, Customer,
 )
 from app.schemas.schemas import (
     MilkProductionCreate, MilkProductionOut,
@@ -101,6 +101,7 @@ def list_milk(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, le=100),
     animal_id: Optional[str] = None,
+    session: Optional[str] = None,
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
     db: Session = Depends(get_db),
@@ -109,6 +110,8 @@ def list_milk(
     query = db.query(MilkProduction).filter(MilkProduction.organization_id == get_org(current_user))
     if animal_id:
         query = query.filter(MilkProduction.animal_id == animal_id)
+    if session:
+        query = query.filter(MilkProduction.session == session)
     if date_from:
         query = query.filter(MilkProduction.production_date >= date_from)
     if date_to:
@@ -265,6 +268,8 @@ def import_milk(
 def _sale_out(s: MilkSale) -> dict:
     d = MilkSaleOut.from_orm(s).dict()
     d["vendor_name"] = s.vendor.name if s.vendor else None
+    d["customer_id"] = str(s.customer_id) if s.customer_id else None
+    d["customer_name"] = s.customer.name if s.customer else None
     return d
 
 
@@ -274,6 +279,8 @@ def list_sales(
     per_page: int = Query(20, le=100),
     date_from: Optional[date] = None,
     date_to: Optional[date] = None,
+    payment_method: Optional[str] = None,
+    vendor_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -282,9 +289,13 @@ def list_sales(
         query = query.filter(MilkSale.sale_date >= date_from)
     if date_to:
         query = query.filter(MilkSale.sale_date <= date_to)
+    if payment_method:
+        query = query.filter(MilkSale.payment_method == payment_method)
+    if vendor_id:
+        query = query.filter(MilkSale.vendor_id == vendor_id)
     total = query.count()
     items = (
-        query.options(joinedload(MilkSale.vendor))
+        query.options(joinedload(MilkSale.vendor), joinedload(MilkSale.customer))
         .order_by(MilkSale.sale_date.desc())
         .offset((page - 1) * per_page).limit(per_page).all()
     )
@@ -307,6 +318,7 @@ def create_sale(
         sale_date=payload.sale_date,
         buyer_name=payload.buyer_name,
         vendor_id=payload.vendor_id,
+        customer_id=payload.customer_id,
         quantity_liters=qty,
         price_per_liter=price,
         total_amount=total,

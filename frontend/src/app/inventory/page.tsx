@@ -18,14 +18,29 @@ export default function InventoryPage() {
   const [productForm, setProductForm] = useState(emptyProduct)
   const [txForm, setTxForm] = useState(emptyTx)
 
+  const [pSearch, setPSearch] = useState('')
+  const [pCategory, setPCategory] = useState('')
+  const [pStatus, setPStatus] = useState('')
+
+  const [tProduct, setTProduct] = useState('')
+  const [tType, setTType] = useState('')
+  const [tDateFrom, setTDateFrom] = useState('')
+  const [tDateTo, setTDateTo] = useState('')
+
+  const hasProductFilter = !!(pSearch || pCategory || pStatus)
+  const hasTxFilter = !!(tProduct || tType || tDateFrom || tDateTo)
+
+  const clearProductFilters = () => { setPSearch(''); setPCategory(''); setPStatus('') }
+  const clearTxFilters = () => { setTProduct(''); setTType(''); setTDateFrom(''); setTDateTo('') }
+
   const { data: products } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => inventoryAPI.listProducts({ per_page: 50 }).then(r => r.data.data),
+    queryKey: ['products', pSearch, pCategory],
+    queryFn: () => inventoryAPI.listProducts({ per_page: 50, search: pSearch || undefined, category: pCategory || undefined }).then(r => r.data.data),
   })
 
   const { data: transactions } = useQuery({
-    queryKey: ['inventory-tx'],
-    queryFn: () => inventoryAPI.listTransactions({ per_page: 50 }).then(r => r.data.data),
+    queryKey: ['inventory-tx', tProduct, tType, tDateFrom, tDateTo],
+    queryFn: () => inventoryAPI.listTransactions({ per_page: 50, product_id: tProduct || undefined, transaction_type: tType || undefined, date_from: tDateFrom || undefined, date_to: tDateTo || undefined }).then(r => r.data.data),
     enabled: tab === 'transactions',
   })
 
@@ -43,7 +58,18 @@ export default function InventoryPage() {
 
   const getProductName = (id: string) => products?.items?.find((p: any) => p.id === id)?.name || 'Unknown'
 
-  const productRows = (products?.items ?? []).map((p: any) => ({
+  const filteredProducts = (products?.items ?? []).filter((p: any) => {
+    if (pStatus === 'low' && parseFloat(p.current_stock) > parseFloat(p.min_stock_level || '0')) return false
+    if (pStatus === 'ok' && parseFloat(p.current_stock) <= parseFloat(p.min_stock_level || '0')) return false
+    return true
+  })
+
+  const filteredTransactions = (transactions?.items ?? []).filter((t: any) => {
+    if (tProduct && t.product_id !== tProduct) return false
+    return true
+  })
+
+  const productRows = filteredProducts.map((p: any) => ({
     name: p.name,
     category: p.category ?? '',
     unit: p.unit,
@@ -53,7 +79,7 @@ export default function InventoryPage() {
     status: parseFloat(p.current_stock) <= parseFloat(p.min_stock_level || '0') ? 'Low Stock' : 'OK',
   }))
 
-  const transactionRows = (transactions?.items ?? []).map((t: any) => ({
+  const transactionRows = filteredTransactions.map((t: any) => ({
     product: getProductName(t.product_id),
     type: t.transaction_type.toUpperCase(),
     quantity: parseFloat(t.quantity).toFixed(2),
@@ -106,7 +132,6 @@ export default function InventoryPage() {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit mb-5">
         {(['products', 'transactions'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${tab === t ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
@@ -114,6 +139,71 @@ export default function InventoryPage() {
           </button>
         ))}
       </div>
+
+      {tab === 'products' && (
+        <div className="card p-4 mb-5">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div>
+              <label className="label">Search</label>
+              <input className="input" placeholder="Product name..." value={pSearch} onChange={e => setPSearch(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Category</label>
+              <select className="input" value={pCategory} onChange={e => setPCategory(e.target.value)}>
+                <option value="">All Categories</option>
+                {['Feed', 'Medicine', 'Supplement', 'Equipment', 'Seed', 'Other'].map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Stock Status</label>
+              <select className="input" value={pStatus} onChange={e => setPStatus(e.target.value)}>
+                <option value="">All</option>
+                <option value="low">Low Stock</option>
+                <option value="ok">OK</option>
+              </select>
+            </div>
+            {hasProductFilter && (
+              <button onClick={clearProductFilters} className="btn-secondary text-sm">✕ Clear</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'transactions' && (
+        <div className="card p-4 mb-5">
+          <div className="flex flex-wrap gap-4 items-end">
+            <div>
+              <label className="label">Product</label>
+              <select className="input" value={tProduct} onChange={e => setTProduct(e.target.value)}>
+                <option value="">All Products</option>
+                {(products?.items ?? []).map((p: any) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Type</label>
+              <select className="input" value={tType} onChange={e => setTType(e.target.value)}>
+                <option value="">All Types</option>
+                <option value="in">IN</option>
+                <option value="out">OUT</option>
+                <option value="adjustment">Adjustment</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Date From</label>
+              <input type="date" className="input" value={tDateFrom} onChange={e => setTDateFrom(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Date To</label>
+              <input type="date" className="input" value={tDateTo} onChange={e => setTDateTo(e.target.value)} />
+            </div>
+            {hasTxFilter && (
+              <button onClick={clearTxFilters} className="btn-secondary text-sm">✕ Clear</button>
+            )}
+          </div>
+        </div>
+      )}
 
       {tab === 'products' && (
         <div className="card overflow-hidden">
@@ -126,7 +216,7 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody>
-              {(products?.items ?? []).map((p: any) => (
+              {filteredProducts.map((p: any) => (
                 <tr key={p.id} className="table-row">
                   <td className="table-cell font-medium">{p.name}</td>
                   <td className="table-cell">{p.category || '—'}</td>
@@ -141,7 +231,7 @@ export default function InventoryPage() {
                   </td>
                 </tr>
               ))}
-              {(products?.items ?? []).length === 0 && (
+              {filteredProducts.length === 0 && (
                 <tr><td colSpan={7} className="text-center py-12 text-gray-400">No products found</td></tr>
               )}
             </tbody>
@@ -160,7 +250,7 @@ export default function InventoryPage() {
               </tr>
             </thead>
             <tbody>
-              {(transactions?.items ?? []).map((t: any) => (
+              {filteredTransactions.map((t: any) => (
                 <tr key={t.id} className="table-row">
                   <td className="table-cell font-medium">{getProductName(t.product_id)}</td>
                   <td className="table-cell">
@@ -174,7 +264,7 @@ export default function InventoryPage() {
                   <td className="table-cell">{t.total_cost ? `PKR ${Number(t.total_cost).toLocaleString()}` : '—'}</td>
                 </tr>
               ))}
-              {(transactions?.items ?? []).length === 0 && (
+              {filteredTransactions.length === 0 && (
                 <tr><td colSpan={6} className="text-center py-12 text-gray-400">No transactions found</td></tr>
               )}
             </tbody>
@@ -182,7 +272,6 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Add Product Modal */}
       {showAddProduct && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md">
@@ -227,7 +316,6 @@ export default function InventoryPage() {
         </div>
       )}
 
-      {/* Add Transaction Modal */}
       {showAddTx && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md">

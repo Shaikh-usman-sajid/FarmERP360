@@ -9,12 +9,38 @@ import ExportButtons from '@/components/ui/ExportButtons'
 const today = new Date().toISOString().split('T')[0]
 const emptyForm = { invoice_id: '', amount: '', payment_date: today, payment_method: 'cash', reference: '', notes: '' }
 
+const PAYMENT_METHODS = ['cash', 'bank_transfer', 'cheque', 'online']
+
 export default function PaymentsPage() {
   const qc = useQueryClient()
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState(emptyForm)
 
-  const { data } = useQuery({ queryKey: ['payments'], queryFn: () => paymentsAPI.list({ per_page: 50 }).then(r => r.data.data) })
+  const [search, setSearch] = useState('')
+  const [method, setMethod] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+
+  const hasFilter = !!(search || method || dateFrom || dateTo)
+
+  function clearFilters() {
+    setSearch('')
+    setMethod('')
+    setDateFrom('')
+    setDateTo('')
+  }
+
+  const { data } = useQuery({
+    queryKey: ['payments', search, method, dateFrom, dateTo],
+    queryFn: () => paymentsAPI.list({
+      per_page: 50,
+      ...(search ? { search } : {}),
+      ...(method ? { payment_method: method } : {}),
+      ...(dateFrom ? { date_from: dateFrom } : {}),
+      ...(dateTo ? { date_to: dateTo } : {}),
+    }).then(r => r.data.data),
+  })
+
   const { data: invoices } = useQuery({ queryKey: ['invoices-list'], queryFn: () => invoicesAPI.list({ per_page: 100, status: 'sent' }).then(r => r.data.data) })
 
   const createMutation = useMutation({
@@ -47,6 +73,33 @@ export default function PaymentsPage() {
             title="Payments"
           />
           <button onClick={() => setShowAdd(true)} className="btn-primary">+ Record Payment</button>
+        </div>
+      </div>
+
+      <div className="card p-4 mb-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="label">Search Reference</label>
+            <input className="input" placeholder="Reference or notes..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Method</label>
+            <select className="input" value={method} onChange={e => setMethod(e.target.value)}>
+              <option value="">All Methods</option>
+              {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Date From</label>
+            <input type="date" className="input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Date To</label>
+            <input type="date" className="input" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          </div>
+          {hasFilter && (
+            <button onClick={clearFilters} className="btn-secondary self-end">✕ Clear</button>
+          )}
         </div>
       </div>
 
@@ -105,7 +158,7 @@ export default function PaymentsPage() {
                 <div>
                   <label className="label">Method</label>
                   <select className="input" value={form.payment_method} onChange={e => setForm({ ...form, payment_method: e.target.value })}>
-                    {['cash', 'bank_transfer', 'cheque', 'online'].map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
+                    {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m.replace('_', ' ')}</option>)}
                   </select>
                 </div>
                 <div>

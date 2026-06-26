@@ -60,6 +60,10 @@ export default function AnimalsPage() {
   const [search, setSearch] = useState('')
   const [species, setSpecies] = useState('')
   const [status, setStatus] = useState('')
+  const [gender, setGender] = useState('')
+  const [ownership, setOwnership] = useState('')
+  const [dobFrom, setDobFrom] = useState('')
+  const [dobTo, setDobTo] = useState('')
 
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -74,9 +78,20 @@ export default function AnimalsPage() {
   const [importErrors, setImportErrors] = useState<string[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const hasFilter = !!(search || species || status || gender || ownership || dobFrom || dobTo)
+
   const { data, isLoading } = useQuery({
-    queryKey: ['animals', page, search, species, status],
-    queryFn: () => animalsAPI.list({ page, per_page: 20, search, species: species || undefined, status: status || undefined }).then(r => r.data.data),
+    queryKey: ['animals', page, search, species, status, gender, ownership, dobFrom, dobTo],
+    queryFn: () => animalsAPI.list({
+      page, per_page: 20,
+      search,
+      species: species || undefined,
+      status: status || undefined,
+      gender: gender || undefined,
+      ownership_type: ownership || undefined,
+      dob_from: dobFrom || undefined,
+      dob_to: dobTo || undefined,
+    }).then(r => r.data.data),
   })
 
   const { data: breedsData } = useQuery({
@@ -285,20 +300,52 @@ export default function AnimalsPage() {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="card p-4 mb-5 flex flex-wrap gap-3">
-        <input className="input max-w-xs" placeholder="Search by code, name, ear tag..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
-        <select className="input max-w-[160px]" value={species} onChange={e => { setSpecies(e.target.value); setPage(1) }}>
-          <option value="">All Species</option>
-          {SPECIES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className="input max-w-[160px]" value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}>
-          <option value="">All Status</option>
-          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        {(search || species || status) && (
-          <button onClick={() => { setSearch(''); setSpecies(''); setStatus(''); setPage(1) }} className="btn-secondary text-xs">Clear</button>
-        )}
+      <div className="card p-4 mb-5">
+        <div className="flex flex-wrap gap-3 items-end">
+          <div>
+            <label className="label">Search</label>
+            <input className="input max-w-xs" placeholder="Code, name, ear tag..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
+          </div>
+          <div>
+            <label className="label">Species</label>
+            <select className="input max-w-[150px]" value={species} onChange={e => { setSpecies(e.target.value); setPage(1) }}>
+              <option value="">All Species</option>
+              {SPECIES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <select className="input max-w-[150px]" value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}>
+              <option value="">All Status</option>
+              {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Gender</label>
+            <select className="input max-w-[130px]" value={gender} onChange={e => { setGender(e.target.value); setPage(1) }}>
+              <option value="">All Genders</option>
+              {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Ownership</label>
+            <select className="input max-w-[140px]" value={ownership} onChange={e => { setOwnership(e.target.value); setPage(1) }}>
+              <option value="">All Ownership</option>
+              {OWNERSHIP.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">DOB From</label>
+            <input type="date" className="input max-w-[160px]" value={dobFrom} onChange={e => { setDobFrom(e.target.value); setPage(1) }} />
+          </div>
+          <div>
+            <label className="label">DOB To</label>
+            <input type="date" className="input max-w-[160px]" value={dobTo} onChange={e => { setDobTo(e.target.value); setPage(1) }} />
+          </div>
+          {hasFilter && (
+            <button onClick={() => { setSearch(''); setSpecies(''); setStatus(''); setGender(''); setOwnership(''); setDobFrom(''); setDobTo(''); setPage(1) }} className="btn-secondary text-xs">✕ Clear</button>
+          )}
+        </div>
       </div>
 
       {/* Table */}

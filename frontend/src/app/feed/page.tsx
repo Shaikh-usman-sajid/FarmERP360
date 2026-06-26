@@ -11,7 +11,6 @@ type Tab = typeof TABS[number]
 
 const SPECIES = ['goat', 'buffalo', 'cattle', 'other']
 const SESSIONS = ['morning', 'evening', 'both']
-const TX_TYPES = ['in', 'out', 'adjustment']
 
 const today = () => new Date().toISOString().split('T')[0]
 
@@ -19,11 +18,37 @@ export default function FeedPage() {
   const [tab, setTab] = useState<Tab>('Overview')
   const qc = useQueryClient()
 
+  // ─── Feed Types filters ────────────────────────────────────
+  const [ftSearch, setFtSearch] = useState('')
+  const [ftStatus, setFtStatus] = useState('')
+  const [ftLowStock, setFtLowStock] = useState('')
+
+  // ─── Stock History filters ─────────────────────────────────
+  const [stFeedTypeId, setStFeedTypeId] = useState('')
+  const [stTxType, setStTxType] = useState('')
+  const [stDateFrom, setStDateFrom] = useState('')
+  const [stDateTo, setStDateTo] = useState('')
+
+  // ─── Consumption Log filters ───────────────────────────────
+  const [conFeedTypeId, setConFeedTypeId] = useState('')
+  const [conSpecies, setConSpecies] = useState('')
+  const [conSession, setConSession] = useState('')
+  const [conDateFrom, setConDateFrom] = useState('')
+  const [conDateTo, setConDateTo] = useState('')
+
   // ─── Queries ───────────────────────────────────────────────
   const summary = useQuery({ queryKey: ['feed-summary'], queryFn: () => feedAPI.summary().then(r => r.data.data) })
   const feedTypes = useQuery({ queryKey: ['feed-types'], queryFn: () => feedAPI.listTypes().then(r => r.data.data) })
-  const stockHistory = useQuery({ queryKey: ['feed-stock'], queryFn: () => feedAPI.listStock().then(r => r.data.data), enabled: tab === 'Stock History' })
-  const consumptionLog = useQuery({ queryKey: ['feed-consumption'], queryFn: () => feedAPI.listConsumption().then(r => r.data.data), enabled: tab === 'Consumption Log' })
+  const stockHistory = useQuery({
+    queryKey: ['feed-stock', stFeedTypeId, stTxType, stDateFrom, stDateTo],
+    queryFn: () => feedAPI.listStock({ feed_type_id: stFeedTypeId || undefined, transaction_type: stTxType || undefined, date_from: stDateFrom || undefined, date_to: stDateTo || undefined }).then(r => r.data.data),
+    enabled: tab === 'Stock History',
+  })
+  const consumptionLog = useQuery({
+    queryKey: ['feed-consumption', conFeedTypeId, conSpecies, conSession, conDateFrom, conDateTo],
+    queryFn: () => feedAPI.listConsumption({ feed_type_id: conFeedTypeId || undefined, species: conSpecies || undefined, session: conSession || undefined, date_from: conDateFrom || undefined, date_to: conDateTo || undefined }).then(r => r.data.data),
+    enabled: tab === 'Consumption Log',
+  })
   const animals = useQuery({ queryKey: ['animals'], queryFn: () => animalsAPI.list({ status: 'active' }).then(r => r.data.data), enabled: tab === 'Record Consumption' })
 
   // ─── Feed Type form ────────────────────────────────────────
@@ -82,7 +107,21 @@ export default function FeedPage() {
   const ftList: any[] = feedTypes.data || []
   const sv = summary.data
 
-  const feedTypeRows = ftList.map((ft: any) => ({
+  // ─── Filtered feed types (client-side) ────────────────────
+  const filteredFtList = ftList.filter((ft: any) => {
+    if (ftSearch && !ft.name.toLowerCase().includes(ftSearch.toLowerCase()) && !(ft.suitable_for || '').toLowerCase().includes(ftSearch.toLowerCase())) return false
+    if (ftStatus === 'active' && !ft.is_active) return false
+    if (ftStatus === 'inactive' && ft.is_active) return false
+    if (ftLowStock === 'yes' && !ft.is_low_stock) return false
+    if (ftLowStock === 'no' && ft.is_low_stock) return false
+    return true
+  })
+
+  const hasFtFilter = !!(ftSearch || ftStatus || ftLowStock)
+  const hasStFilter = !!(stFeedTypeId || stTxType || stDateFrom || stDateTo)
+  const hasConFilter = !!(conFeedTypeId || conSpecies || conSession || conDateFrom || conDateTo)
+
+  const feedTypeRows = filteredFtList.map((ft: any) => ({
     name: ft.name,
     unit: ft.unit,
     current_stock: ft.current_stock,
@@ -256,6 +295,37 @@ export default function FeedPage() {
       {/* ── FEED TYPES ─────────────────────────────────────────── */}
       {tab === 'Feed Types' && (
         <div className="space-y-4">
+          {/* Filter bar */}
+          <div className="card p-4 mb-5">
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="label">Search</label>
+                <input className="input" placeholder="Name or suitable for…" value={ftSearch} onChange={e => setFtSearch(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Status</label>
+                <select className="input" value={ftStatus} onChange={e => setFtStatus(e.target.value)}>
+                  <option value="">All</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Stock Level</label>
+                <select className="input" value={ftLowStock} onChange={e => setFtLowStock(e.target.value)}>
+                  <option value="">All</option>
+                  <option value="yes">Low Stock Only</option>
+                  <option value="no">Normal Stock Only</option>
+                </select>
+              </div>
+              {hasFtFilter && (
+                <button className="btn-secondary text-sm" onClick={() => { setFtSearch(''); setFtStatus(''); setFtLowStock('') }}>
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-end">
             <button onClick={() => { setEditingFt(null); setFtForm({ name: '', unit: 'kg', min_stock_level: '', cost_per_unit: '', suitable_for: '', description: '' }); setShowFtForm(true) }}
               className="btn-primary text-sm">+ Add Feed Type</button>
@@ -315,7 +385,7 @@ export default function FeedPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {ftList.map((ft: any) => (
+                  {filteredFtList.map((ft: any) => (
                     <tr key={ft.id} className="border-t border-gray-50 hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-gray-800">{ft.name}</td>
                       <td className="px-4 py-3 text-gray-600">{ft.unit}</td>
@@ -345,8 +415,8 @@ export default function FeedPage() {
                       </td>
                     </tr>
                   ))}
-                  {ftList.length === 0 && (
-                    <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">No feed types yet. Add one above.</td></tr>
+                  {filteredFtList.length === 0 && (
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">{hasFtFilter ? 'No feed types match the current filters.' : 'No feed types yet. Add one above.'}</td></tr>
                   )}
                 </tbody>
               </table>
@@ -490,82 +560,163 @@ export default function FeedPage() {
 
       {/* ── STOCK HISTORY ──────────────────────────────────────── */}
       {tab === 'Stock History' && (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Date', 'Feed Type', 'Type', 'Quantity', 'Unit Cost', 'Total Cost', 'Reference', 'Notes'].map(h => (
-                    <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {stockHistory.isLoading ? (
-                  <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-400">Loading…</td></tr>
-                ) : (stockHistory.data || []).map((tx: any) => (
-                  <tr key={tx.id} className="border-t border-gray-50 hover:bg-gray-50">
-                    <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{tx.transaction_date}</td>
-                    <td className="px-4 py-2 font-medium text-gray-800">{tx.feed_type_name}</td>
-                    <td className="px-4 py-2">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tx.transaction_type === 'in' ? 'bg-green-100 text-green-700' : tx.transaction_type === 'out' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {tx.transaction_type.toUpperCase()}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 font-semibold text-gray-800">{tx.quantity}</td>
-                    <td className="px-4 py-2 text-gray-600">{tx.unit_cost ? `PKR ${tx.unit_cost}` : '—'}</td>
-                    <td className="px-4 py-2 text-gray-700">{tx.total_cost ? `PKR ${tx.total_cost.toLocaleString('en-PK')}` : '—'}</td>
-                    <td className="px-4 py-2 text-gray-500 text-xs">{tx.reference || '—'}</td>
-                    <td className="px-4 py-2 text-gray-400 text-xs">{tx.notes || '—'}</td>
+        <div className="space-y-4">
+          {/* Filter bar */}
+          <div className="card p-4 mb-5">
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="label">Feed Type</label>
+                <select className="input" value={stFeedTypeId} onChange={e => setStFeedTypeId(e.target.value)}>
+                  <option value="">All</option>
+                  {ftList.map((ft: any) => <option key={ft.id} value={ft.id}>{ft.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Transaction Type</label>
+                <select className="input" value={stTxType} onChange={e => setStTxType(e.target.value)}>
+                  <option value="">All</option>
+                  <option value="in">IN (Purchase)</option>
+                  <option value="out">OUT (Usage)</option>
+                  <option value="adjustment">Adjustment</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Date From</label>
+                <input className="input" type="date" value={stDateFrom} onChange={e => setStDateFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Date To</label>
+                <input className="input" type="date" value={stDateTo} onChange={e => setStDateTo(e.target.value)} />
+              </div>
+              {hasStFilter && (
+                <button className="btn-secondary text-sm" onClick={() => { setStFeedTypeId(''); setStTxType(''); setStDateFrom(''); setStDateTo('') }}>
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {['Date', 'Feed Type', 'Type', 'Quantity', 'Unit Cost', 'Total Cost', 'Reference', 'Notes'].map(h => (
+                      <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
+                    ))}
                   </tr>
-                ))}
-                {!stockHistory.isLoading && (stockHistory.data || []).length === 0 && (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">No stock transactions yet.</td></tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {stockHistory.isLoading ? (
+                    <tr><td colSpan={8} className="px-4 py-6 text-center text-sm text-gray-400">Loading…</td></tr>
+                  ) : (stockHistory.data || []).map((tx: any) => (
+                    <tr key={tx.id} className="border-t border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{tx.transaction_date}</td>
+                      <td className="px-4 py-2 font-medium text-gray-800">{tx.feed_type_name}</td>
+                      <td className="px-4 py-2">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${tx.transaction_type === 'in' ? 'bg-green-100 text-green-700' : tx.transaction_type === 'out' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {tx.transaction_type.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 font-semibold text-gray-800">{tx.quantity}</td>
+                      <td className="px-4 py-2 text-gray-600">{tx.unit_cost ? `PKR ${tx.unit_cost}` : '—'}</td>
+                      <td className="px-4 py-2 text-gray-700">{tx.total_cost ? `PKR ${tx.total_cost.toLocaleString('en-PK')}` : '—'}</td>
+                      <td className="px-4 py-2 text-gray-500 text-xs">{tx.reference || '—'}</td>
+                      <td className="px-4 py-2 text-gray-400 text-xs">{tx.notes || '—'}</td>
+                    </tr>
+                  ))}
+                  {!stockHistory.isLoading && (stockHistory.data || []).length === 0 && (
+                    <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">{hasStFilter ? 'No stock transactions match the current filters.' : 'No stock transactions yet.'}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
 
       {/* ── CONSUMPTION LOG ────────────────────────────────────── */}
       {tab === 'Consumption Log' && (
-        <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  {['Date', 'Feed Type', 'Animal / Species', 'Session', 'Quantity', 'Notes', ''].map(h => (
-                    <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {consumptionLog.isLoading ? (
-                  <tr><td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-400">Loading…</td></tr>
-                ) : (consumptionLog.data || []).map((r: any) => (
-                  <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50">
-                    <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{r.consumption_date}</td>
-                    <td className="px-4 py-2 font-medium text-gray-800">{r.feed_type_name}</td>
-                    <td className="px-4 py-2 text-gray-700 capitalize">
-                      {r.animal_code ? `${r.animal_code}` : r.species ? `${r.species} (herd)` : '—'}
-                    </td>
-                    <td className="px-4 py-2 capitalize text-gray-600">{r.session}</td>
-                    <td className="px-4 py-2 font-semibold text-gray-800">{r.quantity} {r.feed_type_unit}</td>
-                    <td className="px-4 py-2 text-gray-400 text-xs">{r.notes || '—'}</td>
-                    <td className="px-4 py-2">
-                      <button className="text-xs text-red-500 hover:underline"
-                        onClick={() => { if (confirm('Delete this record?')) deleteConsumption.mutate(r.id) }}>
-                        Delete
-                      </button>
-                    </td>
+        <div className="space-y-4">
+          {/* Filter bar */}
+          <div className="card p-4 mb-5">
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="label">Feed Type</label>
+                <select className="input" value={conFeedTypeId} onChange={e => setConFeedTypeId(e.target.value)}>
+                  <option value="">All</option>
+                  {ftList.map((ft: any) => <option key={ft.id} value={ft.id}>{ft.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Species</label>
+                <select className="input" value={conSpecies} onChange={e => setConSpecies(e.target.value)}>
+                  <option value="">All</option>
+                  {SPECIES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Session</label>
+                <select className="input" value={conSession} onChange={e => setConSession(e.target.value)}>
+                  <option value="">All</option>
+                  <option value="morning">Morning</option>
+                  <option value="evening">Evening</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Date From</label>
+                <input className="input" type="date" value={conDateFrom} onChange={e => setConDateFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Date To</label>
+                <input className="input" type="date" value={conDateTo} onChange={e => setConDateTo(e.target.value)} />
+              </div>
+              {hasConFilter && (
+                <button className="btn-secondary text-sm" onClick={() => { setConFeedTypeId(''); setConSpecies(''); setConSession(''); setConDateFrom(''); setConDateTo('') }}>
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="card overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    {['Date', 'Feed Type', 'Animal / Species', 'Session', 'Quantity', 'Notes', ''].map(h => (
+                      <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
+                    ))}
                   </tr>
-                ))}
-                {!consumptionLog.isLoading && (consumptionLog.data || []).length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">No consumption records yet. Use "Record Consumption" tab to add.</td></tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {consumptionLog.isLoading ? (
+                    <tr><td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-400">Loading…</td></tr>
+                  ) : (consumptionLog.data || []).map((r: any) => (
+                    <tr key={r.id} className="border-t border-gray-50 hover:bg-gray-50">
+                      <td className="px-4 py-2 text-gray-600 whitespace-nowrap">{r.consumption_date}</td>
+                      <td className="px-4 py-2 font-medium text-gray-800">{r.feed_type_name}</td>
+                      <td className="px-4 py-2 text-gray-700 capitalize">
+                        {r.animal_code ? `${r.animal_code}` : r.species ? `${r.species} (herd)` : '—'}
+                      </td>
+                      <td className="px-4 py-2 capitalize text-gray-600">{r.session}</td>
+                      <td className="px-4 py-2 font-semibold text-gray-800">{r.quantity} {r.feed_type_unit}</td>
+                      <td className="px-4 py-2 text-gray-400 text-xs">{r.notes || '—'}</td>
+                      <td className="px-4 py-2">
+                        <button className="text-xs text-red-500 hover:underline"
+                          onClick={() => { if (confirm('Delete this record?')) deleteConsumption.mutate(r.id) }}>
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!consumptionLog.isLoading && (consumptionLog.data || []).length === 0 && (
+                    <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-400">{hasConFilter ? 'No consumption records match the current filters.' : 'No consumption records yet. Use "Record Consumption" tab to add.'}</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

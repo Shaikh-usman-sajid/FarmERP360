@@ -19,14 +19,29 @@ export default function AgriculturePage() {
   const [fieldForm, setFieldForm] = useState(emptyField)
   const [cropForm, setCropForm] = useState(emptyCrop)
 
+  const [fieldSearch, setFieldSearch] = useState('')
+  const [fieldSoilType, setFieldSoilType] = useState('')
+
+  const [cropSearch, setCropSearch] = useState('')
+  const [cropStatus, setCropStatus] = useState('')
+  const [cropFieldId, setCropFieldId] = useState('')
+  const [cropSowingFrom, setCropSowingFrom] = useState('')
+  const [cropSowingTo, setCropSowingTo] = useState('')
+
+  const hasFieldFilter = !!(fieldSearch || fieldSoilType)
+  const hasCropFilter = !!(cropSearch || cropStatus || cropFieldId || cropSowingFrom || cropSowingTo)
+
+  const clearFieldFilters = () => { setFieldSearch(''); setFieldSoilType('') }
+  const clearCropFilters = () => { setCropSearch(''); setCropStatus(''); setCropFieldId(''); setCropSowingFrom(''); setCropSowingTo('') }
+
   const { data: fields } = useQuery({
-    queryKey: ['fields'],
-    queryFn: () => agricultureAPI.listFields().then(r => r.data.data),
+    queryKey: ['fields', fieldSearch, fieldSoilType],
+    queryFn: () => agricultureAPI.listFields({ search: fieldSearch || undefined, soil_type: fieldSoilType || undefined }).then(r => r.data.data),
   })
 
   const { data: crops } = useQuery({
-    queryKey: ['crops'],
-    queryFn: () => agricultureAPI.listCrops().then(r => r.data.data),
+    queryKey: ['crops', cropSearch, cropStatus, cropFieldId, cropSowingFrom, cropSowingTo],
+    queryFn: () => agricultureAPI.listCrops({ search: cropSearch || undefined, status: cropStatus || undefined, field_id: cropFieldId || undefined, sowing_date_from: cropSowingFrom || undefined, sowing_date_to: cropSowingTo || undefined }).then(r => r.data.data),
     enabled: tab === 'crops',
   })
 
@@ -81,8 +96,8 @@ export default function AgriculturePage() {
                 { header: 'Status', key: 'status' },
               ]}
               rows={fieldRows}
-              filename="farmerp360-agriculture"
-              title="Agriculture"
+              filename="farmerp360-agriculture-fields"
+              title="Agriculture Fields"
             />
           )}
           {tab === 'crops' && (
@@ -98,8 +113,8 @@ export default function AgriculturePage() {
                 { header: 'Actual Yield (kg)', key: 'actual_yield_kg' },
               ]}
               rows={cropRows}
-              filename="farmerp360-agriculture"
-              title="Agriculture"
+              filename="farmerp360-agriculture-crops"
+              title="Agriculture Crop Cycles"
             />
           )}
           {tab === 'fields' ? (
@@ -117,6 +132,63 @@ export default function AgriculturePage() {
           </button>
         ))}
       </div>
+
+      {tab === 'fields' && (
+        <div className="card p-4 mb-5">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="label">Search</label>
+              <input className="input" placeholder="Field name or location..." value={fieldSearch} onChange={e => setFieldSearch(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Soil Type</label>
+              <select className="input" value={fieldSoilType} onChange={e => setFieldSoilType(e.target.value)}>
+                <option value="">All</option>
+                {['Loamy', 'Clay', 'Sandy', 'Clay Loam', 'Sandy Loam'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            {hasFieldFilter && (
+              <button onClick={clearFieldFilters} className="btn-secondary text-sm">✕ Clear</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'crops' && (
+        <div className="card p-4 mb-5">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div>
+              <label className="label">Search</label>
+              <input className="input" placeholder="Crop name or variety..." value={cropSearch} onChange={e => setCropSearch(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Status</label>
+              <select className="input" value={cropStatus} onChange={e => setCropStatus(e.target.value)}>
+                <option value="">All</option>
+                {['planned', 'growing', 'harvested', 'failed'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Field</label>
+              <select className="input" value={cropFieldId} onChange={e => setCropFieldId(e.target.value)}>
+                <option value="">All Fields</option>
+                {(fields?.items ?? []).map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Sowing From</label>
+              <input type="date" className="input" value={cropSowingFrom} onChange={e => setCropSowingFrom(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Sowing To</label>
+              <input type="date" className="input" value={cropSowingTo} onChange={e => setCropSowingTo(e.target.value)} />
+            </div>
+            {hasCropFilter && (
+              <button onClick={clearCropFilters} className="btn-secondary text-sm">✕ Clear</button>
+            )}
+          </div>
+        </div>
+      )}
 
       {tab === 'fields' && (
         <div>
@@ -171,7 +243,6 @@ export default function AgriculturePage() {
         </div>
       )}
 
-      {/* Add Field Modal */}
       {showAddField && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md">
@@ -206,7 +277,6 @@ export default function AgriculturePage() {
         </div>
       )}
 
-      {/* Add Crop Modal */}
       {showAddCrop && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">

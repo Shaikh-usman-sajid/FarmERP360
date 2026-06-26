@@ -112,6 +112,8 @@ const navGroups: NavGroup[] = [
     items: [
       { label: 'Users', href: '/users', icon: '👤', roles: ['super_admin', 'owner'] },
       { label: 'Animal Breeds', href: '/admin/breeds', icon: '🐄', roles: ['super_admin', 'owner'] },
+      { label: 'Customer Categories', href: '/admin/customer-categories', icon: '🗂️', roles: ['super_admin', 'owner'] },
+      { label: 'Customers', href: '/admin/customers', icon: '👥', roles: ['super_admin', 'owner'] },
       { label: 'Admin Settings', href: '/admin/settings', icon: '⚙️', roles: ['super_admin', 'owner'] },
     ],
   },

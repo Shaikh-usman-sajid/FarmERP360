@@ -14,9 +14,35 @@ export default function TreatmentsPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState(emptyForm)
 
+  const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterAnimal, setFilterAnimal] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterVet, setFilterVet] = useState('')
+
+  const hasFilter = !!(search || filterStatus || filterAnimal || filterDateFrom || filterDateTo || filterVet)
+
+  const clearFilters = () => {
+    setSearch('')
+    setFilterStatus('')
+    setFilterAnimal('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setFilterVet('')
+  }
+
   const { data } = useQuery({
-    queryKey: ['treatments'],
-    queryFn: () => healthAPI.listTreatments({ per_page: 50 }).then(r => r.data.data),
+    queryKey: ['treatments', search, filterStatus, filterAnimal, filterDateFrom, filterDateTo, filterVet],
+    queryFn: () => healthAPI.listTreatments({
+      per_page: 50,
+      ...(search && { search }),
+      ...(filterStatus && { is_resolved: filterStatus === 'resolved' ? 'true' : 'false' }),
+      ...(filterAnimal && { animal_id: filterAnimal }),
+      ...(filterDateFrom && { date_from: filterDateFrom }),
+      ...(filterDateTo && { date_to: filterDateTo }),
+      ...(filterVet && { treated_by: filterVet }),
+    }).then(r => r.data.data),
   })
 
   const { data: animals } = useQuery({
@@ -70,6 +96,57 @@ export default function TreatmentsPage() {
             title="Treatment Records"
           />
           <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Treatment</button>
+        </div>
+      </div>
+
+      <div className="card p-4 mb-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="label">Search</label>
+            <input
+              className="input"
+              placeholder="Diagnosis or medicine..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <select className="input" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="resolved">Resolved</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Animal</label>
+            <select className="input" value={filterAnimal} onChange={e => setFilterAnimal(e.target.value)}>
+              <option value="">All animals</option>
+              {(animals?.items ?? []).map((a: any) => (
+                <option key={a.id} value={a.id}>{a.animal_code}{a.name ? ` (${a.name})` : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Date From</label>
+            <input type="date" className="input" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Date To</label>
+            <input type="date" className="input" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Vet / Treated By</label>
+            <input
+              className="input"
+              placeholder="Vet name..."
+              value={filterVet}
+              onChange={e => setFilterVet(e.target.value)}
+            />
+          </div>
+          {hasFilter && (
+            <button onClick={clearFilters} className="btn-secondary whitespace-nowrap">✕ Clear</button>
+          )}
         </div>
       </div>
 

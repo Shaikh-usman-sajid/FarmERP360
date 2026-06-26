@@ -422,6 +422,7 @@ class MilkSale(Base):
     sale_date = Column(Date, nullable=False, index=True)
     buyer_name = Column(String(255))
     vendor_id = Column(UUID(as_uuid=False), ForeignKey("vendors.id"), nullable=True, index=True)
+    customer_id = Column(UUID(as_uuid=False), ForeignKey("customers.id"), nullable=True, index=True)
     quantity_liters = Column(Numeric(8, 2), nullable=False)
     price_per_liter = Column(Numeric(8, 2), nullable=False)
     total_amount = Column(Numeric(12, 2), nullable=False)
@@ -433,6 +434,7 @@ class MilkSale(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     vendor = relationship("Vendor", foreign_keys=[vendor_id])
+    customer = relationship("Customer", foreign_keys=[customer_id], back_populates="milk_sales")
 
 
 # ─────────────────────────────────────────────
@@ -1117,3 +1119,44 @@ class SystemSettings(Base):
         UniqueConstraint("organization_id", "key", name="uq_settings_org_key"),
         Index('ix_system_settings_org_cat', 'organization_id', 'category'),
     )
+
+
+# ─────────────────────────────────────────────
+# CUSTOMER CATEGORIES & CUSTOMERS
+# ─────────────────────────────────────────────
+
+class CustomerCategory(Base):
+    __tablename__ = "customer_categories"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    description = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    customers = relationship("Customer", back_populates="category")
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "name", name="uq_customer_category_org_name"),
+    )
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False, index=True)
+    category_id = Column(UUID(as_uuid=False), ForeignKey("customer_categories.id"), nullable=True, index=True)
+    name = Column(String(200), nullable=False)
+    phone = Column(String(50), nullable=True)
+    email = Column(String(200), nullable=True)
+    cnic = Column(String(20), nullable=True)   # XXXXX-XXXXXXX-X
+    address = Column(Text, nullable=True)
+    city = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    category = relationship("CustomerCategory", back_populates="customers")
+    milk_sales = relationship("MilkSale", back_populates="customer")

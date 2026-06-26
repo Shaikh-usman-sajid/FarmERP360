@@ -19,6 +19,7 @@ from app.models.models import (
     MilkSession, EmploymentStatus, AttendanceStatus, InventoryTxType, CropStatus,
     TaskStatus, TaskPriority, TaskCategory,
     JournalEntry, JournalEntryLine, ChartOfAccount, JournalEntryStatus,
+    CustomerCategory, Customer,
 )
 
 
@@ -470,6 +471,50 @@ def seed():
                     is_read=False
                 )
                 db.add(n)
+
+        # ── Customer Categories & Customers ──────────────────────────
+        default_categories = [
+            ("Milk Customer",               "Customers who purchase milk directly"),
+            ("Pallai with Farm Animal",     "Pallai subscribers using the farm's animals"),
+            ("Pallai with Own Animal",      "Pallai subscribers who bring their own animal"),
+        ]
+        cat_map = {}
+        for cat_name, cat_desc in default_categories:
+            existing_cat = db.query(CustomerCategory).filter(
+                CustomerCategory.organization_id == org.id,
+                CustomerCategory.name == cat_name,
+            ).first()
+            if not existing_cat:
+                existing_cat = CustomerCategory(
+                    organization_id=org.id,
+                    name=cat_name,
+                    description=cat_desc,
+                )
+                db.add(existing_cat)
+                db.flush()
+            cat_map[cat_name] = existing_cat
+
+        demo_customers = [
+            ("Milk Customer",           "Ahmed Ali",    "0300-1234567", "35202-1234567-1", "House 12, Block A, Lahore",   "Lahore"),
+            ("Milk Customer",           "Bilal Khan",   "0312-9876543", "35202-9876543-2", "Plot 5, Gulberg, Lahore",      "Lahore"),
+            ("Pallai with Farm Animal", "Zafar Iqbal",  "0333-1122334", "35202-1122334-3", "Village Khaira, Gujranwala",   "Gujranwala"),
+            ("Pallai with Own Animal",  "Nadia Bibi",   "0345-5566778", "35202-5566778-4", "Street 7, Shadman, Lahore",    "Lahore"),
+        ]
+        for cat_name, cust_name, phone, cnic, address, city in demo_customers:
+            existing_cust = db.query(Customer).filter(
+                Customer.organization_id == org.id,
+                Customer.name == cust_name,
+            ).first()
+            if not existing_cust:
+                db.add(Customer(
+                    organization_id=org.id,
+                    category_id=cat_map[cat_name].id,
+                    name=cust_name,
+                    phone=phone,
+                    cnic=cnic,
+                    address=address,
+                    city=city,
+                ))
 
         db.commit()
         print("✅ Seed complete! Demo data loaded.")

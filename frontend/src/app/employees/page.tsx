@@ -13,9 +13,25 @@ export default function EmployeesPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState(emptyForm)
 
+  const [search, setSearch] = useState('')
+  const [department, setDepartment] = useState('')
+  const [status, setStatus] = useState('')
+  const [joinFrom, setJoinFrom] = useState('')
+  const [joinTo, setJoinTo] = useState('')
+
+  const hasFilter = !!(search || department || status || joinFrom || joinTo)
+
+  function clearFilters() {
+    setSearch('')
+    setDepartment('')
+    setStatus('')
+    setJoinFrom('')
+    setJoinTo('')
+  }
+
   const { data } = useQuery({
-    queryKey: ['employees'],
-    queryFn: () => employeesAPI.list({ per_page: 50 }).then(r => r.data.data),
+    queryKey: ['employees', search, department, status, joinFrom, joinTo],
+    queryFn: () => employeesAPI.list({ per_page: 100, search: search || undefined, department: department || undefined, status: status || undefined, join_from: joinFrom || undefined, join_to: joinTo || undefined }).then(r => r.data.data),
   })
 
   const createMutation = useMutation({
@@ -36,6 +52,7 @@ export default function EmployeesPage() {
             columns={[
               { header: 'Name', key: 'name' },
               { header: 'Designation', key: 'designation' },
+              { header: 'Department', key: 'department' },
               { header: 'Phone', key: 'phone' },
               { header: 'CNIC', key: 'cnic' },
               { header: 'Salary (PKR)', key: 'salary' },
@@ -45,6 +62,7 @@ export default function EmployeesPage() {
             rows={(data?.items ?? []).map((e: any) => ({
               name: e.full_name,
               designation: e.designation || '',
+              department: e.department || '',
               phone: e.phone || '',
               cnic: e.cnic || '',
               salary: e.monthly_salary ? Number(e.monthly_salary) : '',
@@ -55,6 +73,41 @@ export default function EmployeesPage() {
             title="Employees"
           />
           <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Employee</button>
+        </div>
+      </div>
+
+      <div className="card p-4 mb-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="label">Search</label>
+            <input className="input" placeholder="Name, code, CNIC..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Department</label>
+            <select className="input" value={department} onChange={e => setDepartment(e.target.value)}>
+              <option value="">All Departments</option>
+              {['Operations', 'Dairy', 'Health', 'Agriculture', 'Transport', 'Admin'].map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <select className="input" value={status} onChange={e => setStatus(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Join From</label>
+            <input type="date" className="input" value={joinFrom} onChange={e => setJoinFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Join To</label>
+            <input type="date" className="input" value={joinTo} onChange={e => setJoinTo(e.target.value)} />
+          </div>
+          {hasFilter && (
+            <button onClick={clearFilters} className="btn-secondary">✕ Clear</button>
+          )}
         </div>
       </div>
 

@@ -17,7 +17,39 @@ export default function InvoicesPage() {
   const [payOptions, setPayOptions] = useState<any>(null)
   const [form, setForm] = useState<any>(emptyForm)
 
-  const { data } = useQuery({ queryKey: ['invoices'], queryFn: () => invoicesAPI.list({ per_page: 50 }).then(r => r.data.data) })
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [dueDateFrom, setDueDateFrom] = useState('')
+  const [dueDateTo, setDueDateTo] = useState('')
+  const [page, setPage] = useState(1)
+
+  const hasFilter = !!(search || statusFilter || dateFrom || dateTo || dueDateFrom || dueDateTo)
+
+  const clearFilters = () => {
+    setSearch('')
+    setStatusFilter('')
+    setDateFrom('')
+    setDateTo('')
+    setDueDateFrom('')
+    setDueDateTo('')
+    setPage(1)
+  }
+
+  const { data } = useQuery({
+    queryKey: ['invoices', search, statusFilter, dateFrom, dateTo, dueDateFrom, dueDateTo, page],
+    queryFn: () => invoicesAPI.list({
+      per_page: 50,
+      page,
+      ...(search ? { search } : {}),
+      ...(statusFilter ? { status: statusFilter } : {}),
+      ...(dateFrom ? { issue_date_from: dateFrom } : {}),
+      ...(dateTo ? { issue_date_to: dateTo } : {}),
+      ...(dueDateFrom ? { due_date_from: dueDateFrom } : {}),
+      ...(dueDateTo ? { due_date_to: dueDateTo } : {}),
+    }).then(r => r.data.data),
+  })
 
   const createMutation = useMutation({
     mutationFn: (d: any) => invoicesAPI.create(d),
@@ -51,6 +83,7 @@ export default function InvoicesPage() {
               { header: 'Date', key: 'Date' },
               { header: 'Due Date', key: 'Due Date' },
               { header: 'Amount (PKR)', key: 'Amount (PKR)' },
+              { header: 'Paid (PKR)', key: 'Paid (PKR)' },
               { header: 'Status', key: 'Status' },
             ]}
             rows={(data?.items ?? []).map((inv: any) => ({
@@ -59,12 +92,57 @@ export default function InvoicesPage() {
               Date: inv.issue_date,
               'Due Date': inv.due_date || '',
               'Amount (PKR)': Number(inv.total_amount),
+              'Paid (PKR)': Number(inv.paid_amount),
               Status: inv.status,
             }))}
             filename="farmerp360-invoices"
             title="Invoices"
           />
           <button onClick={() => setShowAdd(true)} className="btn-primary">+ New Invoice</button>
+        </div>
+      </div>
+
+      <div className="card p-4 mb-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="label">Search</label>
+            <input
+              className="input"
+              placeholder="Invoice # or customer..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+            />
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <select className="input" value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}>
+              <option value="">All Statuses</option>
+              <option value="draft">Draft</option>
+              <option value="sent">Sent</option>
+              <option value="paid">Paid</option>
+              <option value="overdue">Overdue</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Issue Date From</label>
+            <input type="date" className="input" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }} />
+          </div>
+          <div>
+            <label className="label">Issue Date To</label>
+            <input type="date" className="input" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} />
+          </div>
+          <div>
+            <label className="label">Due Date From</label>
+            <input type="date" className="input" value={dueDateFrom} onChange={e => { setDueDateFrom(e.target.value); setPage(1) }} />
+          </div>
+          <div>
+            <label className="label">Due Date To</label>
+            <input type="date" className="input" value={dueDateTo} onChange={e => { setDueDateTo(e.target.value); setPage(1) }} />
+          </div>
+          {hasFilter && (
+            <button onClick={clearFilters} className="btn-secondary">✕ Clear</button>
+          )}
         </div>
       </div>
 
@@ -141,7 +219,6 @@ export default function InvoicesPage() {
                   <input type="date" className="input" value={form.due_date} onChange={e => setForm({ ...form, due_date: e.target.value })} />
                 </div>
               </div>
-              {/* Line Items */}
               <div>
                 <label className="label">Line Items</label>
                 <div className="space-y-2">
@@ -177,7 +254,6 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
-      {/* Payment Gateway Modal */}
       {payInvoice && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">

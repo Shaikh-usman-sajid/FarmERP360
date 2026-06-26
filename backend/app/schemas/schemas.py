@@ -261,6 +261,7 @@ class MilkSaleCreate(BaseModel):
     sale_date: date
     buyer_name: Optional[str] = None
     vendor_id: Optional[str] = None
+    customer_id: Optional[str] = None
     quantity_liters: Decimal
     price_per_liter: Decimal
     total_amount: Optional[Decimal] = None  # auto-calculated if omitted
@@ -274,7 +275,9 @@ class MilkSaleOut(BaseModel):
     sale_date: date
     buyer_name: Optional[str]
     vendor_id: Optional[str]
-    vendor_name: Optional[str] = None      # populated from relationship
+    vendor_name: Optional[str] = None
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
     quantity_liters: Decimal
     price_per_liter: Decimal
     total_amount: Decimal
@@ -922,3 +925,55 @@ class LedgerEntry(BaseModel):
     debit: Decimal
     credit: Decimal
     balance: Decimal
+
+
+# ── Customer Categories ──────────────────────────────────
+
+class CustomerCategoryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    is_active: bool = True
+
+
+class CustomerCategoryOut(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    customer_count: Optional[int] = 0
+
+    class Config:
+        from_attributes = True
+
+
+# ── Customers ────────────────────────────────────────────
+
+class CustomerCreate(BaseModel):
+    category_id: Optional[str] = None
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    cnic: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: bool = True
+
+
+class CustomerOut(BaseModel):
+    id: str
+    category_id: Optional[str] = None
+    category_name: Optional[str] = None
+    name: str
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    cnic: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

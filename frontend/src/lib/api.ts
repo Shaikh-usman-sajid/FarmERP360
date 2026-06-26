@@ -143,7 +143,7 @@ export const employeesAPI = {
 
 export const investorsAPI = {
   // Investors CRUD
-  list: () => api.get('/investors'),
+  list: (params?: object) => api.get('/investors', { params }),
   get: (id: string) => api.get(`/investors/${id}`),
   create: (data: object) => api.post('/investors', data),
   update: (id: string, data: object) => api.put(`/investors/${id}`, data),
@@ -280,6 +280,20 @@ export const forecastingAPI = {
   feed: (months?: number) => api.get('/forecasting/feed', { params: { months } }),
   cashFlow: (months?: number, milkPrice?: number) => api.get('/forecasting/cash-flow', { params: { months, milk_price_per_liter: milkPrice } }),
   cropYield: () => api.get('/forecasting/crop-yield'),
+}
+
+export const customerCategoriesAPI = {
+  list: () => api.get('/customer-categories'),
+  create: (data: object) => api.post('/customer-categories', data),
+  update: (id: string, data: object) => api.put(`/customer-categories/${id}`, data),
+  delete: (id: string) => api.delete(`/customer-categories/${id}`),
+}
+
+export const customersAPI = {
+  list: (params?: object) => api.get('/customers', { params }),
+  create: (data: object) => api.post('/customers', data),
+  update: (id: string, data: object) => api.put(`/customers/${id}`, data),
+  delete: (id: string) => api.delete(`/customers/${id}`),
 }
 
 export const adminAPI = {

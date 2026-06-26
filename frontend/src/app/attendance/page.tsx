@@ -13,9 +13,29 @@ export default function AttendancePage() {
   const [showMark, setShowMark] = useState(false)
   const [form, setForm] = useState({ employee_id: '', date: today, status: 'present', check_in: '08:00', check_out: '17:00', notes: '' })
 
+  const [filterDateFrom, setFilterDateFrom] = useState(today)
+  const [filterDateTo, setFilterDateTo] = useState(today)
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterEmployee, setFilterEmployee] = useState('')
+
+  const hasFilter = filterDateFrom !== today || filterDateTo !== today || filterStatus !== '' || filterEmployee !== ''
+
+  const clearFilters = () => {
+    setFilterDateFrom(today)
+    setFilterDateTo(today)
+    setFilterStatus('')
+    setFilterEmployee('')
+  }
+
   const { data: attendance } = useQuery({
-    queryKey: ['attendance'],
-    queryFn: () => employeesAPI.listAttendance({ per_page: 50, date_from: today, date_to: today }).then(r => r.data.data),
+    queryKey: ['attendance', filterDateFrom, filterDateTo, filterStatus, filterEmployee],
+    queryFn: () => employeesAPI.listAttendance({
+      per_page: 100,
+      date_from: filterDateFrom,
+      date_to: filterDateTo,
+      ...(filterStatus ? { status: filterStatus } : {}),
+      ...(filterEmployee ? { employee_id: filterEmployee } : {}),
+    }).then(r => r.data.data),
   })
 
   const { data: employees } = useQuery({
@@ -38,7 +58,7 @@ export default function AttendancePage() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Attendance</h1>
-          <p className="page-subtitle">Today: {presentToday} present, {absentToday} absent</p>
+          <p className="page-subtitle">Showing: {presentToday} present, {absentToday} absent</p>
         </div>
         <div className="flex items-center gap-2">
           <ExportButtons
@@ -65,10 +85,45 @@ export default function AttendancePage() {
         </div>
       </div>
 
+      <div className="card p-4 mb-5">
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <label className="label">Date From</label>
+            <input type="date" className="input" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Date To</label>
+            <input type="date" className="input" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <select className="input" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              <option value="">All Statuses</option>
+              <option value="present">Present</option>
+              <option value="absent">Absent</option>
+              <option value="half_day">Half Day</option>
+              <option value="leave">Leave</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Employee</label>
+            <select className="input" value={filterEmployee} onChange={e => setFilterEmployee(e.target.value)}>
+              <option value="">All Employees</option>
+              {(employees?.items ?? []).map((e: any) => (
+                <option key={e.id} value={e.id}>{e.full_name}</option>
+              ))}
+            </select>
+          </div>
+          {hasFilter && (
+            <button onClick={clearFilters} className="btn-secondary">✕ Clear</button>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-3 gap-4 mb-5">
         {[
-          { label: 'Present Today', value: presentToday, color: 'text-green-700 bg-green-50' },
-          { label: 'Absent Today', value: absentToday, color: 'text-red-700 bg-red-50' },
+          { label: 'Present', value: presentToday, color: 'text-green-700 bg-green-50' },
+          { label: 'Absent', value: absentToday, color: 'text-red-700 bg-red-50' },
           { label: 'Total Employees', value: employees?.total ?? 0, color: 'text-blue-700 bg-blue-50' },
         ].map(item => (
           <div key={item.label} className={`card p-4 ${item.color}`}>
@@ -103,7 +158,7 @@ export default function AttendancePage() {
               </tr>
             ))}
             {(attendance?.items ?? []).length === 0 && (
-              <tr><td colSpan={6} className="text-center py-12 text-gray-400">No attendance records for today</td></tr>
+              <tr><td colSpan={6} className="text-center py-12 text-gray-400">No attendance records found</td></tr>
             )}
           </tbody>
         </table>

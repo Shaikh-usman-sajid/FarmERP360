@@ -15,9 +15,39 @@ export default function VaccinationPage() {
   const [form, setForm] = useState(emptyForm)
   const [page, setPage] = useState(1)
 
+  const [search, setSearch] = useState('')
+  const [filterAnimal, setFilterAnimal] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterDueFrom, setFilterDueFrom] = useState('')
+  const [filterDueTo, setFilterDueTo] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+
+  const hasFilter = !!(search || filterAnimal || filterDateFrom || filterDateTo || filterDueFrom || filterDueTo || filterStatus)
+
+  const clearFilters = () => {
+    setSearch('')
+    setFilterAnimal('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setFilterDueFrom('')
+    setFilterDueTo('')
+    setFilterStatus('')
+    setPage(1)
+  }
+
   const { data } = useQuery({
-    queryKey: ['vaccinations', page],
-    queryFn: () => healthAPI.listVaccinations({ page, per_page: 20 }).then(r => r.data.data),
+    queryKey: ['vaccinations', page, search, filterAnimal, filterDateFrom, filterDateTo, filterDueFrom, filterDueTo, filterStatus],
+    queryFn: () => healthAPI.listVaccinations({
+      page,
+      per_page: 20,
+      ...(search && { search }),
+      ...(filterAnimal && { animal_id: filterAnimal }),
+      ...(filterDateFrom && { date_from: filterDateFrom }),
+      ...(filterDateTo && { date_to: filterDateTo }),
+      ...(filterDueFrom && { due_from: filterDueFrom }),
+      ...(filterDueTo && { due_to: filterDueTo }),
+    }).then(r => r.data.data),
   })
 
   const { data: animals } = useQuery({
@@ -49,6 +79,18 @@ export default function VaccinationPage() {
     return new Date(d) < new Date()
   }
 
+  const getStatus = (nextDue: string) => {
+    if (!nextDue) return 'none'
+    if (isOverdue(nextDue)) return 'overdue'
+    if (isDueSoon(nextDue)) return 'due_soon'
+    return 'ok'
+  }
+
+  const filteredItems = (data?.items ?? []).filter((v: any) => {
+    if (!filterStatus) return true
+    return getStatus(v.next_due_date) === filterStatus
+  })
+
   return (
     <DashboardLayout>
       <div className="page-header">
@@ -65,21 +107,103 @@ export default function VaccinationPage() {
               { header: 'Next Due Date', key: 'next_due_date' },
               { header: 'Dose', key: 'dose' },
               { header: 'Administered By', key: 'administered_by' },
+              { header: 'Status', key: 'status' },
               { header: 'Notes', key: 'notes' },
             ]}
-            rows={(data?.items ?? []).map((v: any) => ({
+            rows={filteredItems.map((v: any) => ({
               animal: getAnimalCode(v.animal_id),
               vaccine_name: v.vaccine_name,
               administered_date: v.administered_date,
               next_due_date: v.next_due_date || '',
               dose: v.dose || '',
               administered_by: v.administered_by || '',
+              status: v.next_due_date ? (isOverdue(v.next_due_date) ? 'Overdue' : isDueSoon(v.next_due_date) ? 'Due Soon' : 'OK') : '—',
               notes: v.notes || '',
             }))}
             filename="farmerp360-vaccinations"
             title="Vaccination Records"
           />
           <button onClick={() => setShowAdd(true)} className="btn-primary">+ Add Vaccination</button>
+        </div>
+      </div>
+
+      <div className="card p-4 mb-5">
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <label className="label">Search Vaccine</label>
+            <input
+              className="input"
+              placeholder="Vaccine name..."
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1) }}
+            />
+          </div>
+          <div>
+            <label className="label">Animal</label>
+            <select
+              className="input"
+              value={filterAnimal}
+              onChange={e => { setFilterAnimal(e.target.value); setPage(1) }}
+            >
+              <option value="">All Animals</option>
+              {(animals?.items ?? []).map((a: any) => (
+                <option key={a.id} value={a.id}>{a.animal_code}{a.name ? ` (${a.name})` : ''}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Administered From</label>
+            <input
+              type="date"
+              className="input"
+              value={filterDateFrom}
+              onChange={e => { setFilterDateFrom(e.target.value); setPage(1) }}
+            />
+          </div>
+          <div>
+            <label className="label">Administered To</label>
+            <input
+              type="date"
+              className="input"
+              value={filterDateTo}
+              onChange={e => { setFilterDateTo(e.target.value); setPage(1) }}
+            />
+          </div>
+          <div>
+            <label className="label">Due Date From</label>
+            <input
+              type="date"
+              className="input"
+              value={filterDueFrom}
+              onChange={e => { setFilterDueFrom(e.target.value); setPage(1) }}
+            />
+          </div>
+          <div>
+            <label className="label">Due Date To</label>
+            <input
+              type="date"
+              className="input"
+              value={filterDueTo}
+              onChange={e => { setFilterDueTo(e.target.value); setPage(1) }}
+            />
+          </div>
+          <div>
+            <label className="label">Status</label>
+            <select
+              className="input"
+              value={filterStatus}
+              onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
+            >
+              <option value="">All Statuses</option>
+              <option value="ok">OK</option>
+              <option value="due_soon">Due Soon</option>
+              <option value="overdue">Overdue</option>
+              <option value="none">No Due Date</option>
+            </select>
+          </div>
+          {hasFilter && (
+            <button onClick={clearFilters} className="btn-secondary whitespace-nowrap">✕ Clear</button>
+          )}
         </div>
       </div>
 
@@ -93,7 +217,7 @@ export default function VaccinationPage() {
             </tr>
           </thead>
           <tbody>
-            {(data?.items ?? []).map((v: any) => (
+            {filteredItems.map((v: any) => (
               <tr key={v.id} className="table-row">
                 <td className="table-cell font-mono font-semibold text-green-700">{getAnimalCode(v.animal_id)}</td>
                 <td className="table-cell font-medium">{v.vaccine_name}</td>
@@ -113,7 +237,7 @@ export default function VaccinationPage() {
                 </td>
               </tr>
             ))}
-            {(data?.items ?? []).length === 0 && (
+            {filteredItems.length === 0 && (
               <tr><td colSpan={8} className="text-center py-12 text-gray-400">No vaccination records found</td></tr>
             )}
           </tbody>
