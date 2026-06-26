@@ -311,6 +311,7 @@ export const adminAPI = {
 export const analyticsAPI = {
   overview: () => api.get('/analytics/overview'),
   milkTrends: (months?: number) => api.get('/analytics/milk-trends', { params: { months } }),
+  milkSalesByCustomer: (months?: number) => api.get('/analytics/milk-sales-by-customer', { params: { months } }),
   animalProfitability: () => api.get('/analytics/animal-profitability'),
   cashFlow: (months?: number) => api.get('/analytics/cash-flow', { params: { months } }),
   farmHealth: (months?: number) => api.get('/analytics/farm-health', { params: { months } }),

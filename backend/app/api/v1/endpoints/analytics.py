@@ -13,7 +13,7 @@ from app.models.models import (
     Employee, AttendanceRecord, Invoice, Payment, InvoiceStatus,
     Investor, ProfitDistribution, PallaiCustomer, PallaiSubscription,
     VendorBill, VendorBillStatus, PayrollRun, PayrollRecord, User,
-    PallaiPackage, EmploymentStatus
+    PallaiPackage, EmploymentStatus, Customer
 )
 
 router = APIRouter(tags=["Analytics"])
@@ -205,6 +205,93 @@ def analytics_milk_trends(
             "avg_daily": round(liters_f / days_in_month, 2),
         })
 
+    return {"success": True, "data": result}
+
+
+@router.get("/analytics/milk-sales-by-customer")
+def analytics_milk_sales_by_customer(
+    months: int = Query(default=12, ge=1, le=36),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = get_org(current_user)
+    today = date.today()
+    cutoff = date(today.year - (1 if today.month <= months % 12 else 0),
+                  ((today.month - months) % 12) or 12, 1)
+    # Re-compute exact cutoff using _month_range
+    periods = list(_month_range(months))
+    date_from = periods[0][3]   # first day of oldest month
+    date_to   = periods[-1][4]  # last day of newest month
+
+    # Aggregate by customer_id (linked customer)
+    linked = (
+        db.query(
+            MilkSale.customer_id,
+            func.coalesce(func.sum(MilkSale.quantity_liters), 0).label("liters"),
+            func.coalesce(func.sum(MilkSale.total_amount), 0).label("revenue"),
+            func.count(MilkSale.id).label("transactions"),
+        )
+        .filter(
+            MilkSale.organization_id == org_id,
+            MilkSale.customer_id.isnot(None),
+            MilkSale.sale_date >= date_from,
+            MilkSale.sale_date <= date_to,
+        )
+        .group_by(MilkSale.customer_id)
+        .all()
+    )
+
+    # Aggregate walk-ins (no customer_id) grouped by buyer_name
+    walkin = (
+        db.query(
+            MilkSale.buyer_name,
+            func.coalesce(func.sum(MilkSale.quantity_liters), 0).label("liters"),
+            func.coalesce(func.sum(MilkSale.total_amount), 0).label("revenue"),
+            func.count(MilkSale.id).label("transactions"),
+        )
+        .filter(
+            MilkSale.organization_id == org_id,
+            MilkSale.customer_id.is_(None),
+            MilkSale.sale_date >= date_from,
+            MilkSale.sale_date <= date_to,
+        )
+        .group_by(MilkSale.buyer_name)
+        .all()
+    )
+
+    # Fetch customer names for linked rows
+    cust_ids = [r.customer_id for r in linked if r.customer_id]
+    cust_map = {}
+    if cust_ids:
+        customers = db.query(Customer).filter(Customer.id.in_(cust_ids)).all()
+        cust_map = {c.id: c.name for c in customers}
+
+    result = []
+    for row in linked:
+        liters = float(row.liters)
+        revenue = float(row.revenue)
+        result.append({
+            "customer_id": row.customer_id,
+            "customer_name": cust_map.get(row.customer_id, "Unknown"),
+            "liters": round(liters, 2),
+            "revenue": round(revenue, 2),
+            "transactions": row.transactions,
+            "avg_price_per_liter": round(revenue / liters, 2) if liters > 0 else 0,
+        })
+
+    for row in walkin:
+        liters = float(row.liters)
+        revenue = float(row.revenue)
+        result.append({
+            "customer_id": None,
+            "customer_name": row.buyer_name or "Walk-in",
+            "liters": round(liters, 2),
+            "revenue": round(revenue, 2),
+            "transactions": row.transactions,
+            "avg_price_per_liter": round(revenue / liters, 2) if liters > 0 else 0,
+        })
+
+    result.sort(key=lambda x: x["revenue"], reverse=True)
     return {"success": True, "data": result}
 
 

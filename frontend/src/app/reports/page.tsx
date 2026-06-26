@@ -46,6 +46,7 @@ export default function ReportsPage() {
 
   const overview = useQuery({ queryKey: ['analytics-overview'], queryFn: () => analyticsAPI.overview().then(r => r.data.data) })
   const milk = useQuery({ queryKey: ['analytics-milk', 12], queryFn: () => analyticsAPI.milkTrends(12).then(r => r.data.data), enabled: tab === 'Milk' || tab === 'Overview' })
+  const milkByCustomer = useQuery({ queryKey: ['analytics-milk-customers', 12], queryFn: () => analyticsAPI.milkSalesByCustomer(12).then(r => r.data.data), enabled: tab === 'Milk' })
   const cashFlow = useQuery({ queryKey: ['analytics-cash-flow', 6], queryFn: () => analyticsAPI.cashFlow(6).then(r => r.data.data), enabled: tab === 'Cash Flow' || tab === 'Overview' })
   const farmHealth = useQuery({ queryKey: ['analytics-farm-health', 6], queryFn: () => analyticsAPI.farmHealth(6).then(r => r.data.data), enabled: tab === 'Farm Health' })
   const animals = useQuery({ queryKey: ['analytics-animals'], queryFn: () => analyticsAPI.animalProfitability().then(r => r.data.data), enabled: tab === 'Animals' })
@@ -63,18 +64,33 @@ export default function ReportsPage() {
           <p className="page-subtitle">Business intelligence across all farm operations</p>
         </div>
         {tab === 'Milk' && (
-          <ExportButtons
-            columns={[
-              { header: 'Month', key: 'month' },
-              { header: 'Liters', key: 'liters' },
-              { header: 'Avg Daily (L)', key: 'avg_daily' },
-              { header: 'Revenue (PKR)', key: 'revenue' },
-            ]}
-            rows={milk.data ?? []}
-            filename="farmerp360-report-milk"
-            title="Milk Production Report"
-            disabled={!milk.data?.length}
-          />
+          <div className="flex gap-2">
+            <ExportButtons
+              columns={[
+                { header: 'Customer',          key: 'customer_name' },
+                { header: 'Liters',            key: 'liters' },
+                { header: 'Revenue (PKR)',      key: 'revenue' },
+                { header: 'Transactions',       key: 'transactions' },
+                { header: 'Avg Price/L (PKR)',  key: 'avg_price_per_liter' },
+              ]}
+              rows={milkByCustomer.data ?? []}
+              filename="farmerp360-milk-by-customer"
+              title="Milk Sales by Customer"
+              disabled={!milkByCustomer.data?.length}
+            />
+            <ExportButtons
+              columns={[
+                { header: 'Month', key: 'month' },
+                { header: 'Liters', key: 'liters' },
+                { header: 'Avg Daily (L)', key: 'avg_daily' },
+                { header: 'Revenue (PKR)', key: 'revenue' },
+              ]}
+              rows={milk.data ?? []}
+              filename="farmerp360-report-milk"
+              title="Milk Production Report"
+              disabled={!milk.data?.length}
+            />
+          </div>
         )}
         {tab === 'Cash Flow' && (
           <ExportButtons
@@ -320,6 +336,93 @@ export default function ReportsPage() {
               </div>
             </div>
           ) : null}
+
+          {/* ── Customer Breakdown ───────────────────────── */}
+          {milkByCustomer.isLoading ? (
+            <p className="text-sm text-gray-400 text-center py-6">Loading customer data…</p>
+          ) : milkByCustomer.data?.length ? (
+            <div className="space-y-4">
+              {/* Bar chart — top customers by revenue */}
+              <div className="card p-5">
+                <h2 className="text-sm font-semibold text-gray-700 mb-4">
+                  Top Customers by Revenue — Last 12 Months
+                </h2>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={milkByCustomer.data.slice(0, 10)} layout="vertical" margin={{ left: 16, right: 16 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+                    <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={v => `${(v/1000).toFixed(0)}K`} />
+                    <YAxis type="category" dataKey="customer_name" tick={{ fontSize: 11 }} width={120} />
+                    <Tooltip formatter={(v: any) => [`PKR ${Number(v).toLocaleString('en-PK')}`, 'Revenue']} />
+                    <Bar dataKey="revenue" fill="#16a34a" radius={[0, 4, 4, 0]}>
+                      {milkByCustomer.data.slice(0, 10).map((_: any, i: number) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Customer breakdown table */}
+              <div className="card overflow-hidden">
+                <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-gray-700">Sales by Customer</h2>
+                  <span className="text-xs text-gray-400">{milkByCustomer.data.length} customer{milkByCustomer.data.length !== 1 ? 's' : ''}</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {['#', 'Customer', 'Liters', 'Revenue (PKR)', 'Transactions', 'Avg Price/L'].map(h => (
+                          <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {milkByCustomer.data.map((row: any, i: number) => {
+                        const totalRevenue = milkByCustomer.data.reduce((s: number, r: any) => s + r.revenue, 0)
+                        const pct = totalRevenue > 0 ? (row.revenue / totalRevenue * 100).toFixed(1) : '0'
+                        return (
+                          <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
+                            <td className="px-4 py-2 text-gray-400 text-xs">{i + 1}</td>
+                            <td className="px-4 py-2">
+                              <div className="font-medium text-gray-800">{row.customer_name}</div>
+                              <div className="w-full bg-gray-100 rounded-full h-1 mt-1">
+                                <div className="bg-green-500 h-1 rounded-full" style={{ width: `${pct}%` }} />
+                              </div>
+                              <div className="text-xs text-gray-400 mt-0.5">{pct}% of total</div>
+                            </td>
+                            <td className="px-4 py-2 font-medium">{row.liters.toLocaleString('en-PK')} L</td>
+                            <td className="px-4 py-2 font-bold text-green-700">{row.revenue.toLocaleString('en-PK')}</td>
+                            <td className="px-4 py-2 text-center">{row.transactions}</td>
+                            <td className="px-4 py-2 text-gray-600">PKR {row.avg_price_per_liter}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                      <tr>
+                        <td colSpan={2} className="px-4 py-2 text-xs font-bold text-gray-700">Total</td>
+                        <td className="px-4 py-2 font-bold">
+                          {milkByCustomer.data.reduce((s: number, r: any) => s + r.liters, 0).toLocaleString('en-PK')} L
+                        </td>
+                        <td className="px-4 py-2 font-bold text-green-700">
+                          {milkByCustomer.data.reduce((s: number, r: any) => s + r.revenue, 0).toLocaleString('en-PK')}
+                        </td>
+                        <td className="px-4 py-2 font-bold text-center">
+                          {milkByCustomer.data.reduce((s: number, r: any) => s + r.transactions, 0)}
+                        </td>
+                        <td className="px-4 py-2" />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="card text-center py-10 text-gray-400 text-sm">
+              No milk sales recorded in the last 12 months
+            </div>
+          )}
         </div>
       )}
 
