@@ -84,6 +84,7 @@ const navGroups: NavGroup[] = [
       { label: 'Invoices', href: '/invoices', icon: '🧾', roles: ['super_admin', 'owner', 'accountant', 'data_entry'] },
       { label: 'Payments', href: '/payments', icon: '💳', roles: ['super_admin', 'owner', 'accountant'] },
       { label: 'Reports', href: '/reports', icon: '📊', roles: ['super_admin', 'owner', 'accountant', 'farm_manager'] },
+      { label: 'Customer Analytics', href: '/reports?tab=Customers', icon: '👥', roles: ['super_admin', 'owner', 'accountant'] },
       { label: 'Forecasting', href: '/forecasting', icon: '🔮', roles: ['super_admin', 'owner', 'farm_manager', 'accountant'] },
     ],
   },

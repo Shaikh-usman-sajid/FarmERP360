@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { analyticsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
@@ -43,6 +43,12 @@ type Tab = typeof TABS[number]
 
 export default function ReportsPage() {
   const [tab, setTab] = useState<Tab>('Overview')
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const t = params.get('tab') as Tab
+    if (t && TABS.includes(t)) setTab(t)
+  }, [])
 
   const overview = useQuery({ queryKey: ['analytics-overview'], queryFn: () => analyticsAPI.overview().then(r => r.data.data) })
   const milk = useQuery({ queryKey: ['analytics-milk', 12], queryFn: () => analyticsAPI.milkTrends(12).then(r => r.data.data), enabled: tab === 'Milk' || tab === 'Overview' })
