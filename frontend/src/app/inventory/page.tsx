@@ -1,21 +1,18 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { inventoryAPI } from '@/lib/api'
+import { inventoryAPI, productCategoriesAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
 
 const today = new Date().toISOString().split('T')[0]
-const emptyProduct = { name: '', category: '', unit: 'kg', min_stock_level: '', unit_cost: '', description: '' }
 const emptyTx = { product_id: '', transaction_type: 'in', quantity: '', unit_cost: '', reference: '', notes: '', transaction_date: today }
 
 export default function InventoryPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<'products' | 'transactions'>('products')
-  const [showAddProduct, setShowAddProduct] = useState(false)
   const [showAddTx, setShowAddTx] = useState(false)
-  const [productForm, setProductForm] = useState(emptyProduct)
   const [txForm, setTxForm] = useState(emptyTx)
 
   const [pSearch, setPSearch] = useState('')
@@ -33,6 +30,12 @@ export default function InventoryPage() {
   const clearProductFilters = () => { setPSearch(''); setPCategory(''); setPStatus('') }
   const clearTxFilters = () => { setTProduct(''); setTType(''); setTDateFrom(''); setTDateTo('') }
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ['product-categories'],
+    queryFn: () => productCategoriesAPI.list().then(r => r.data.data),
+  })
+  const categories: any[] = categoriesData ?? []
+
   const { data: products } = useQuery({
     queryKey: ['products', pSearch, pCategory],
     queryFn: () => inventoryAPI.listProducts({ per_page: 50, search: pSearch || undefined, category: pCategory || undefined }).then(r => r.data.data),
@@ -42,12 +45,6 @@ export default function InventoryPage() {
     queryKey: ['inventory-tx', tProduct, tType, tDateFrom, tDateTo],
     queryFn: () => inventoryAPI.listTransactions({ per_page: 50, product_id: tProduct || undefined, transaction_type: tType || undefined, date_from: tDateFrom || undefined, date_to: tDateTo || undefined }).then(r => r.data.data),
     enabled: tab === 'transactions',
-  })
-
-  const createProduct = useMutation({
-    mutationFn: (d: any) => inventoryAPI.createProduct(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['products'] }); toast.success('Product added!'); setShowAddProduct(false); setProductForm(emptyProduct) },
-    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
   })
 
   const createTx = useMutation({
@@ -127,8 +124,7 @@ export default function InventoryPage() {
               title="Inventory"
             />
           )}
-          <button onClick={() => setShowAddTx(true)} className="btn-secondary">+ Stock Transaction</button>
-          <button onClick={() => setShowAddProduct(true)} className="btn-primary">+ Add Product</button>
+          <button onClick={() => setShowAddTx(true)} className="btn-primary">+ Stock Transaction</button>
         </div>
       </div>
 
@@ -151,7 +147,7 @@ export default function InventoryPage() {
               <label className="label">Category</label>
               <select className="input" value={pCategory} onChange={e => setPCategory(e.target.value)}>
                 <option value="">All Categories</option>
-                {['Feed', 'Medicine', 'Supplement', 'Equipment', 'Seed', 'Other'].map(c => <option key={c} value={c}>{c}</option>)}
+                {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
             <div>
@@ -269,50 +265,6 @@ export default function InventoryPage() {
               )}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {showAddProduct && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="flex items-center justify-between p-5 border-b">
-              <h2 className="text-lg font-bold">Add Product</h2>
-              <button onClick={() => setShowAddProduct(false)} className="text-gray-400 text-xl">✕</button>
-            </div>
-            <form onSubmit={e => { e.preventDefault(); const d: any = { ...productForm }; if (d.min_stock_level) d.min_stock_level = parseFloat(d.min_stock_level); if (d.unit_cost) d.unit_cost = parseFloat(d.unit_cost); createProduct.mutate(d) }} className="p-5 space-y-4">
-              <div>
-                <label className="label">Product Name *</label>
-                <input className="input" required value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Category</label>
-                  <select className="input" value={productForm.category} onChange={e => setProductForm({ ...productForm, category: e.target.value })}>
-                    <option value="">Select...</option>
-                    {['Feed', 'Medicine', 'Supplement', 'Equipment', 'Seed', 'Other'].map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Unit</label>
-                  <select className="input" value={productForm.unit} onChange={e => setProductForm({ ...productForm, unit: e.target.value })}>
-                    {['kg', 'g', 'L', 'ml', 'pcs', 'pack', 'vial', 'bag'].map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Min Stock</label>
-                  <input type="number" className="input" value={productForm.min_stock_level} onChange={e => setProductForm({ ...productForm, min_stock_level: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">Unit Cost (PKR)</label>
-                  <input type="number" className="input" value={productForm.unit_cost} onChange={e => setProductForm({ ...productForm, unit_cost: e.target.value })} />
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowAddProduct(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" disabled={createProduct.isPending} className="btn-primary">{createProduct.isPending ? 'Saving...' : 'Add Product'}</button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
 

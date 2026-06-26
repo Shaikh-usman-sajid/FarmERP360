@@ -201,9 +201,57 @@ def customer_subscriptions(
     return {"success": True, "data": [_enrich_subscription(s).dict() for s in subs]}
 
 
+@customer_sub_router.get("/ledger-summary")
+def customers_ledger_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles(["super_admin", "owner", "farm_manager", "accountant"])
+    ),
+):
+    """Aggregated ledger totals for every active Pallai customer."""
+    customers = (
+        db.query(PallaiCustomer)
+        .filter(
+            PallaiCustomer.organization_id == current_user.organization_id,
+            PallaiCustomer.is_active == True,
+        )
+        .order_by(PallaiCustomer.full_name)
+        .all()
+    )
+    result = []
+    for c in customers:
+        invoices = (
+            db.query(Invoice)
+            .filter(
+                Invoice.organization_id == current_user.organization_id,
+                Invoice.customer_id == c.id,
+            )
+            .all()
+        )
+        total_billed = sum(float(inv.total_amount or 0) for inv in invoices)
+        total_paid = sum(float(inv.paid_amount or 0) for inv in invoices)
+        outstanding = round(total_billed - total_paid, 2)
+        last_date = max((inv.issue_date for inv in invoices), default=None)
+        result.append({
+            "id": c.id,
+            "full_name": c.full_name,
+            "phone": c.phone or "",
+            "email": c.email or "",
+            "total_billed": total_billed,
+            "total_paid": total_paid,
+            "outstanding": outstanding,
+            "invoice_count": len(invoices),
+            "last_invoice_date": str(last_date) if last_date else None,
+        })
+    return {"data": result}
+
+
 @customer_sub_router.get("/{cust_id}/ledger")
 def customer_ledger(
     cust_id: str,
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(
         require_roles(["super_admin", "owner", "farm_manager", "accountant"])
@@ -217,15 +265,17 @@ def customer_ledger(
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    invoices = (
-        db.query(Invoice)
-        .filter(
-            Invoice.organization_id == current_user.organization_id,
-            Invoice.customer_id == cust_id,
-        )
-        .order_by(Invoice.issue_date.asc(), Invoice.created_at.asc())
-        .all()
+    q = db.query(Invoice).filter(
+        Invoice.organization_id == current_user.organization_id,
+        Invoice.customer_id == cust_id,
     )
+    if date_from:
+        q = q.filter(Invoice.issue_date >= date_from)
+    if date_to:
+        q = q.filter(Invoice.issue_date <= date_to)
+    if status:
+        q = q.filter(Invoice.status == status)
+    invoices = q.order_by(Invoice.issue_date.asc(), Invoice.created_at.asc()).all()
 
     entries = []
     running_balance = Decimal("0.00")

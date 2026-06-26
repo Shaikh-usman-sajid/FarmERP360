@@ -501,6 +501,15 @@ class InventoryTransaction(Base):
     product = relationship("Product", back_populates="transactions")
 
 
+class ProductCategory(Base):
+    __tablename__ = "product_categories"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 # ─────────────────────────────────────────────
 # AGRICULTURE
 # ─────────────────────────────────────────────

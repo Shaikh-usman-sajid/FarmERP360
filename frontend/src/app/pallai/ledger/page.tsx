@@ -6,42 +6,152 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 
 export default function PallaiLedgerPage() {
   const [selectedCustomer, setSelectedCustomer] = useState('')
+  const [search, setSearch] = useState('')
+  const [filterOutstanding, setFilterOutstanding] = useState(false)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
 
-  const { data: customers = [] } = useQuery({ queryKey: ['pallai-customers'], queryFn: () => pallaiAPI.listCustomers().then(r => r.data.data) })
-  const { data: ledger = [], isLoading: loadingLedger } = useQuery({
-    queryKey: ['pallai-ledger', selectedCustomer],
-    queryFn: () => pallaiAPI.getCustomerLedger(selectedCustomer).then(r => r.data.data),
-    enabled: !!selectedCustomer
+  const { data: summary = [], isLoading: loadingSummary } = useQuery({
+    queryKey: ['pallai-ledger-summary'],
+    queryFn: () => pallaiAPI.getLedgerSummary().then(r => r.data.data),
   })
+
+  const { data: customers = [] } = useQuery({
+    queryKey: ['pallai-customers'],
+    queryFn: () => pallaiAPI.listCustomers().then(r => r.data.data),
+  })
+
+  const { data: ledger = [], isLoading: loadingLedger } = useQuery({
+    queryKey: ['pallai-ledger', selectedCustomer, dateFrom, dateTo, statusFilter],
+    queryFn: () => pallaiAPI.getCustomerLedger(selectedCustomer, {
+      date_from: dateFrom || undefined,
+      date_to: dateTo || undefined,
+      status: statusFilter || undefined,
+    }).then(r => r.data.data),
+    enabled: !!selectedCustomer,
+  })
+
   const { data: subscriptions = [] } = useQuery({
     queryKey: ['pallai-customer-subs', selectedCustomer],
     queryFn: () => pallaiAPI.getCustomerSubscriptions(selectedCustomer).then(r => r.data.data),
-    enabled: !!selectedCustomer
+    enabled: !!selectedCustomer,
   })
 
   const selectedCustomerData = (customers as any[]).find((c: any) => c.id === selectedCustomer)
   const totalBilled = (ledger as any[]).reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0)
   const totalPaid = (ledger as any[]).reduce((sum: number, e: any) => sum + Number(e.paid_amount || 0), 0)
 
+  // Filter summary table
+  const filteredSummary = (summary as any[]).filter((c: any) => {
+    if (search && !c.full_name.toLowerCase().includes(search.toLowerCase()) && !c.phone.includes(search)) return false
+    if (filterOutstanding && c.outstanding <= 0) return false
+    return true
+  })
+
+  const clearFilters = () => { setSearch(''); setFilterOutstanding(false) }
+  const clearLedgerFilters = () => { setDateFrom(''); setDateTo(''); setStatusFilter('') }
+
   return (
     <DashboardLayout>
       <div className="page-header">
-        <h1 className="page-title">Customer Ledger</h1>
+        <div>
+          <h1 className="page-title">Customer Ledger</h1>
+          <p className="page-subtitle">All customers — invoice history and outstanding balances</p>
+        </div>
+        {selectedCustomer && (
+          <button onClick={() => setSelectedCustomer('')} className="btn-secondary text-sm">← All Customers</button>
+        )}
       </div>
 
-      {/* Customer selector */}
-      <div className="card p-4 mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Select Customer</label>
-        <select className="form-input max-w-md" value={selectedCustomer} onChange={e => setSelectedCustomer(e.target.value)}>
-          <option value="">— Choose a customer —</option>
-          {(customers as any[]).map((c: any) => <option key={c.id} value={c.id}>{c.full_name} {c.phone ? '· ' + c.phone : ''}</option>)}
-        </select>
-      </div>
-
-      {selectedCustomer && (
+      {!selectedCustomer ? (
         <>
-          {/* Customer summary */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+          {/* Summary filters */}
+          <div className="card p-4 mb-5">
+            <div className="flex flex-wrap gap-4 items-end">
+              <div>
+                <label className="label">Search Customer</label>
+                <input className="input" placeholder="Name or phone..." value={search} onChange={e => setSearch(e.target.value)} />
+              </div>
+              <div className="flex items-center gap-2 self-end pb-1">
+                <input
+                  type="checkbox"
+                  id="outstanding"
+                  checked={filterOutstanding}
+                  onChange={e => setFilterOutstanding(e.target.checked)}
+                  className="h-4 w-4 text-green-600 rounded"
+                />
+                <label htmlFor="outstanding" className="text-sm text-gray-700">Outstanding balance only</label>
+              </div>
+              {(search || filterOutstanding) && (
+                <button onClick={clearFilters} className="btn-secondary text-sm self-end">✕ Clear</button>
+              )}
+            </div>
+          </div>
+
+          {/* All customers summary table */}
+          <div className="card overflow-hidden">
+            {loadingSummary ? (
+              <div className="p-12 text-center text-gray-400">Loading customer ledgers...</div>
+            ) : (
+              <table className="w-full">
+                <thead className="table-header">
+                  <tr>
+                    {['Customer', 'Phone', 'Invoices', 'Total Billed', 'Total Paid', 'Outstanding', 'Actions'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSummary.map((c: any) => (
+                    <tr key={c.id} className="table-row">
+                      <td className="table-cell font-semibold">{c.full_name}</td>
+                      <td className="table-cell text-gray-500">{c.phone || '—'}</td>
+                      <td className="table-cell">{c.invoice_count}</td>
+                      <td className="table-cell">PKR {Number(c.total_billed).toLocaleString()}</td>
+                      <td className="table-cell text-green-700">PKR {Number(c.total_paid).toLocaleString()}</td>
+                      <td className="table-cell">
+                        <span className={`font-semibold ${c.outstanding > 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                          PKR {Number(c.outstanding).toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="table-cell">
+                        <button
+                          onClick={() => setSelectedCustomer(c.id)}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                        >
+                          View Ledger
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredSummary.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-gray-400">
+                        {search || filterOutstanding ? 'No customers match the filters' : 'No customers found'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                {filteredSummary.length > 0 && (
+                  <tfoot>
+                    <tr className="bg-gray-50 font-semibold border-t-2">
+                      <td colSpan={3} className="py-3 px-4 text-right text-gray-700">Totals ({filteredSummary.length} customers):</td>
+                      <td className="py-3 px-4">PKR {filteredSummary.reduce((s: number, c: any) => s + Number(c.total_billed), 0).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-green-700">PKR {filteredSummary.reduce((s: number, c: any) => s + Number(c.total_paid), 0).toLocaleString()}</td>
+                      <td className="py-3 px-4 text-red-600">PKR {filteredSummary.reduce((s: number, c: any) => s + Number(c.outstanding), 0).toLocaleString()}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Customer detail header */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-5">
             <div className="card p-4">
               <div className="text-lg font-bold text-gray-900">{selectedCustomerData?.full_name}</div>
               <div className="text-sm text-gray-500">{selectedCustomerData?.phone || '—'}</div>
@@ -65,7 +175,7 @@ export default function PallaiLedgerPage() {
 
           {/* Subscriptions */}
           {(subscriptions as any[]).length > 0 && (
-            <div className="card p-4 mb-6">
+            <div className="card p-4 mb-5">
               <h3 className="font-semibold text-gray-700 mb-3">Subscriptions</h3>
               <div className="flex flex-wrap gap-3">
                 {(subscriptions as any[]).map((s: any) => (
@@ -80,15 +190,51 @@ export default function PallaiLedgerPage() {
             </div>
           )}
 
+          {/* Ledger filters */}
+          <div className="card p-4 mb-5">
+            <div className="flex flex-wrap gap-4 items-end">
+              <div>
+                <label className="label">Date From</label>
+                <input type="date" className="input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Date To</label>
+                <input type="date" className="input" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Status</label>
+                <select className="input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                  <option value="">All Statuses</option>
+                  <option value="draft">Draft</option>
+                  <option value="sent">Sent</option>
+                  <option value="paid">Paid</option>
+                  <option value="overdue">Overdue</option>
+                </select>
+              </div>
+              {(dateFrom || dateTo || statusFilter) && (
+                <button onClick={clearLedgerFilters} className="btn-secondary text-sm self-end">✕ Clear</button>
+              )}
+            </div>
+          </div>
+
           {/* Ledger table */}
           <div className="card">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="font-semibold text-gray-900">Invoice Ledger</h3>
             </div>
-            {loadingLedger ? <div className="p-8 text-center text-gray-400">Loading ledger...</div> :
-              (ledger as any[]).length === 0 ? <div className="p-8 text-center text-gray-400">No invoices found for this customer</div> :
+            {loadingLedger ? (
+              <div className="p-8 text-center text-gray-400">Loading ledger...</div>
+            ) : (ledger as any[]).length === 0 ? (
+              <div className="p-8 text-center text-gray-400">No invoices found for this customer</div>
+            ) : (
               <table className="w-full text-sm">
-                <thead><tr className="border-b border-gray-100 bg-gray-50">{['Date','Invoice #','Description','Amount','Paid','Balance','Status'].map(h => <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50">
+                    {['Date', 'Invoice #', 'Description', 'Amount', 'Paid', 'Balance', 'Status'].map(h => (
+                      <th key={h} className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
                 <tbody>
                   {(ledger as any[]).map((e: any, i: number) => (
                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
@@ -97,29 +243,30 @@ export default function PallaiLedgerPage() {
                       <td className="py-3 px-4 text-gray-600">{e.description}</td>
                       <td className="py-3 px-4 font-medium">PKR {Number(e.amount || 0).toLocaleString()}</td>
                       <td className="py-3 px-4 text-green-700">PKR {Number(e.paid_amount || 0).toLocaleString()}</td>
-                      <td className={`py-3 px-4 font-semibold ${Number(e.balance || 0) > 0 ? 'text-red-600' : 'text-gray-600'}`}>PKR {Number(e.balance || 0).toLocaleString()}</td>
-                      <td className="py-3 px-4"><span className={e.status === 'paid' ? 'badge-active' : 'badge-info'}>{e.status}</span></td>
+                      <td className={`py-3 px-4 font-semibold ${Number(e.balance || 0) > 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                        PKR {Number(e.balance || 0).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={e.status === 'paid' ? 'badge-active' : 'badge-info'}>{e.status}</span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot><tr className="bg-gray-50 font-semibold">
-                  <td colSpan={3} className="py-3 px-4 text-right text-gray-700">Totals:</td>
-                  <td className="py-3 px-4">PKR {totalBilled.toLocaleString()}</td>
-                  <td className="py-3 px-4 text-green-700">PKR {totalPaid.toLocaleString()}</td>
-                  <td className={`py-3 px-4 ${(totalBilled - totalPaid) > 0 ? 'text-red-600' : 'text-green-600'}`}>PKR {(totalBilled - totalPaid).toLocaleString()}</td>
-                  <td></td>
-                </tr></tfoot>
+                <tfoot>
+                  <tr className="bg-gray-50 font-semibold">
+                    <td colSpan={3} className="py-3 px-4 text-right text-gray-700">Totals:</td>
+                    <td className="py-3 px-4">PKR {totalBilled.toLocaleString()}</td>
+                    <td className="py-3 px-4 text-green-700">PKR {totalPaid.toLocaleString()}</td>
+                    <td className={`py-3 px-4 ${(totalBilled - totalPaid) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      PKR {(totalBilled - totalPaid).toLocaleString()}
+                    </td>
+                    <td></td>
+                  </tr>
+                </tfoot>
               </table>
-            }
+            )}
           </div>
         </>
-      )}
-
-      {!selectedCustomer && (
-        <div className="card p-12 text-center text-gray-400">
-          <div className="text-4xl mb-3">📒</div>
-          <div className="text-lg font-medium text-gray-500">Select a customer to view their ledger</div>
-        </div>
       )}
     </DashboardLayout>
   )

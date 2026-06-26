@@ -124,6 +124,13 @@ export const inventoryAPI = {
   createTransaction: (data: object) => api.post('/inventory-transactions', data),
 }
 
+export const productCategoriesAPI = {
+  list: () => api.get('/product-categories'),
+  create: (data: object) => api.post('/product-categories', data),
+  update: (id: string, data: object) => api.put(`/product-categories/${id}`, data),
+  delete: (id: string) => api.delete(`/product-categories/${id}`),
+}
+
 export const agricultureAPI = {
   listFields: (params?: object) => api.get('/fields', { params }),
   createField: (data: object) => api.post('/fields', data),
@@ -174,7 +181,8 @@ export const pallaiAPI = {
   createCustomer: (data: object) => api.post('/pallai-customers', data),
   updateCustomer: (id: string, data: object) => api.put(`/pallai-customers/${id}`, data),
   getCustomerSubscriptions: (id: string) => api.get(`/pallai-customers/${id}/subscriptions`),
-  getCustomerLedger: (id: string) => api.get(`/pallai-customers/${id}/ledger`),
+  getCustomerLedger: (id: string, params?: object) => api.get(`/pallai-customers/${id}/ledger`, { params }),
+  getLedgerSummary: () => api.get('/pallai-customers/ledger-summary'),
   // Packages
   listPackages: () => api.get('/pallai-packages'),
   createPackage: (data: object) => api.post('/pallai-packages', data),

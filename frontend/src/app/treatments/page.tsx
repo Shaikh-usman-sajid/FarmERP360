@@ -246,8 +246,8 @@ export default function TreatmentsPage() {
 
       {/* ── View Treatment Panel ─────────────────────────────── */}
       {viewTreatment && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-end sm:justify-end p-0 sm:p-4">
-          <div className="bg-white w-full sm:w-[860px] h-full sm:h-auto sm:max-h-[90vh] sm:rounded-xl flex overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 bg-black/50 z-50 flex justify-end">
+          <div className="bg-white w-full sm:w-[860px] h-full flex overflow-hidden shadow-2xl">
             {/* Left: animal treatment list */}
             <div className="w-56 border-r bg-gray-50 flex flex-col flex-shrink-0">
               <div className="p-4 border-b bg-white">
@@ -326,18 +326,14 @@ export default function TreatmentsPage() {
                     <p className="font-bold text-green-700">{viewTreatment.cost ? Number(viewTreatment.cost).toLocaleString('en-PK') : '—'}</p>
                   </div>
                 </div>
-                {viewTreatment.treatment_description && (
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-0.5">Treatment Description</p>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{viewTreatment.treatment_description}</p>
-                  </div>
-                )}
-                {viewTreatment.medicine_used && (
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-500 mb-0.5">Medicine Used</p>
-                    <p className="text-sm text-gray-800">{viewTreatment.medicine_used}</p>
-                  </div>
-                )}
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-0.5">Treatment Description</p>
+                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{viewTreatment.treatment_description || '—'}</p>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-0.5">Medicine Used</p>
+                  <p className="text-sm text-gray-800">{viewTreatment.medicine_used || '—'}</p>
+                </div>
               </div>
             </div>
           </div>
