@@ -720,3 +720,141 @@ def analytics_pallai_performance(
             "monthly_billing": monthly_billing,
         },
     }
+
+
+@router.get("/analytics/customers")
+def analytics_customers(
+    months: int = Query(default=12, ge=1, le=36),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    org_id = get_org(current_user)
+    today = date.today()
+    month_start = today.replace(day=1)
+    thirty_days_ago = today - timedelta(days=30)
+    sixty_days_ago = today - timedelta(days=60)
+
+    # Totals
+    total_active = db.query(func.count(Customer.id)).filter(
+        Customer.organization_id == org_id, Customer.is_active == True
+    ).scalar() or 0
+
+    total_inactive = db.query(func.count(Customer.id)).filter(
+        Customer.organization_id == org_id, Customer.is_active == False
+    ).scalar() or 0
+
+    new_this_month = db.query(func.count(Customer.id)).filter(
+        Customer.organization_id == org_id,
+        Customer.is_active == True,
+        Customer.created_at >= month_start,
+    ).scalar() or 0
+
+    # Customers with a milk sale in last 30 days
+    active_buyers = db.query(MilkSale.customer_id).filter(
+        MilkSale.organization_id == org_id,
+        MilkSale.customer_id.isnot(None),
+        MilkSale.sale_date >= thirty_days_ago,
+    ).distinct().subquery()
+
+    at_risk = db.query(func.count(Customer.id)).filter(
+        Customer.organization_id == org_id,
+        Customer.is_active == True,
+        Customer.id.notin_(db.query(active_buyers.c.customer_id)),
+        Customer.id.in_(
+            db.query(MilkSale.customer_id).filter(
+                MilkSale.organization_id == org_id,
+                MilkSale.customer_id.isnot(None),
+                MilkSale.sale_date < thirty_days_ago,
+                MilkSale.sale_date >= sixty_days_ago,
+            ).distinct()
+        ),
+    ).scalar() or 0
+
+    # Revenue by category
+    from sqlalchemy.orm import joinedload
+    from app.models.models import CustomerCategory
+    cats = db.query(CustomerCategory).filter(
+        CustomerCategory.organization_id == org_id, CustomerCategory.is_active == True
+    ).all()
+
+    by_category = []
+    for cat in cats:
+        cust_ids = [c.id for c in db.query(Customer.id).filter(
+            Customer.organization_id == org_id, Customer.category_id == cat.id
+        ).all()]
+        rev = float(db.query(func.coalesce(func.sum(MilkSale.total_amount), 0)).filter(
+            MilkSale.organization_id == org_id,
+            MilkSale.customer_id.in_(cust_ids),
+        ).scalar() or 0)
+        inv_rev = float(db.query(func.coalesce(func.sum(Invoice.total_amount), 0)).filter(
+            Invoice.organization_id == org_id,
+            Invoice.customer_id.in_(cust_ids),
+        ).scalar() or 0)
+        by_category.append({
+            "category": cat.name.strip(),
+            "customer_count": len(cust_ids),
+            "milk_revenue": round(rev, 2),
+            "invoice_revenue": round(inv_rev, 2),
+            "total_revenue": round(rev + inv_rev, 2),
+        })
+    by_category.sort(key=lambda x: x["total_revenue"], reverse=True)
+
+    # Monthly new customers (acquisition trend)
+    acquisition = []
+    for year, month, month_str, first_day, last_day in _month_range(months):
+        count = db.query(func.count(Customer.id)).filter(
+            Customer.organization_id == org_id,
+            Customer.created_at >= first_day,
+            Customer.created_at <= last_day,
+        ).scalar() or 0
+        acquisition.append({"month": month_str, "new_customers": count})
+
+    # Customer leaderboard (lifetime milk + invoice revenue)
+    customers = db.query(Customer).filter(
+        Customer.organization_id == org_id, Customer.is_active == True
+    ).all()
+
+    leaderboard = []
+    for c in customers:
+        milk_rev = float(db.query(func.coalesce(func.sum(MilkSale.total_amount), 0)).filter(
+            MilkSale.organization_id == org_id, MilkSale.customer_id == c.id
+        ).scalar() or 0)
+        inv_rev = float(db.query(func.coalesce(func.sum(Invoice.total_amount), 0)).filter(
+            Invoice.organization_id == org_id, Invoice.customer_id == c.id
+        ).scalar() or 0)
+        txns = db.query(func.count(MilkSale.id)).filter(
+            MilkSale.organization_id == org_id, MilkSale.customer_id == c.id
+        ).scalar() or 0
+        last_sale = db.query(func.max(MilkSale.sale_date)).filter(
+            MilkSale.organization_id == org_id, MilkSale.customer_id == c.id
+        ).scalar()
+        days_since = (today - last_sale).days if last_sale else None
+        status = "active" if (days_since is not None and days_since <= 30) else ("at_risk" if (days_since is not None and days_since <= 60) else ("churned" if days_since is not None else "new"))
+        leaderboard.append({
+            "id": c.id,
+            "name": c.name,
+            "phone": c.phone,
+            "city": c.city,
+            "category_id": c.category_id,
+            "milk_revenue": round(milk_rev, 2),
+            "invoice_revenue": round(inv_rev, 2),
+            "total_revenue": round(milk_rev + inv_rev, 2),
+            "transactions": txns,
+            "last_sale_date": str(last_sale) if last_sale else None,
+            "days_since_last_sale": days_since,
+            "status": status,
+        })
+    leaderboard.sort(key=lambda x: x["total_revenue"], reverse=True)
+
+    return {
+        "success": True,
+        "data": {
+            "total_active": total_active,
+            "total_inactive": total_inactive,
+            "new_this_month": new_this_month,
+            "at_risk": at_risk,
+            "by_category": by_category,
+            "acquisition_trend": acquisition,
+            "leaderboard": leaderboard,
+        },
+    }

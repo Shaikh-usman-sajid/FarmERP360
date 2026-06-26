@@ -38,7 +38,7 @@ function KpiCard({ label, value, change_pct, prefix = '', suffix = '' }: any) {
   )
 }
 
-const TABS = ['Overview', 'Milk', 'Cash Flow', 'Farm Health', 'Animals', 'Inventory', 'Investors', 'Pallai'] as const
+const TABS = ['Overview', 'Milk', 'Cash Flow', 'Farm Health', 'Animals', 'Inventory', 'Investors', 'Pallai', 'Customers'] as const
 type Tab = typeof TABS[number]
 
 export default function ReportsPage() {
@@ -53,6 +53,7 @@ export default function ReportsPage() {
   const inventory = useQuery({ queryKey: ['analytics-inventory'], queryFn: () => analyticsAPI.inventoryHealth().then(r => r.data.data), enabled: tab === 'Inventory' })
   const investors = useQuery({ queryKey: ['analytics-investors'], queryFn: () => analyticsAPI.investorPerformance().then(r => r.data.data), enabled: tab === 'Investors' })
   const pallai = useQuery({ queryKey: ['analytics-pallai'], queryFn: () => analyticsAPI.pallaiPerformance().then(r => r.data.data), enabled: tab === 'Pallai' })
+  const customers = useQuery({ queryKey: ['analytics-customers'], queryFn: () => analyticsAPI.customerAnalytics().then(r => r.data.data), enabled: tab === 'Customers' })
 
   const ov = overview.data
 
@@ -177,6 +178,21 @@ export default function ReportsPage() {
             filename="farmerp360-report-pallai"
             title="Pallai Billing Report"
             disabled={!pallai.data?.monthly_billing?.length}
+          />
+        )}
+        {tab === 'Customers' && (
+          <ExportButtons
+            columns={[
+              { header: 'Customer', key: 'name' },
+              { header: 'Status', key: 'status' },
+              { header: 'Total Revenue (PKR)', key: 'total_revenue' },
+              { header: 'Total Liters', key: 'total_liters' },
+              { header: 'Transactions', key: 'transaction_count' },
+            ]}
+            rows={customers.data?.leaderboard ?? []}
+            filename="farmerp360-report-customers"
+            title="Customer Analytics Report"
+            disabled={!customers.data?.leaderboard?.length}
           />
         )}
         {tab === 'Overview' && (
@@ -690,6 +706,120 @@ export default function ReportsPage() {
               </div>
             </>
           ) : null}
+        </div>
+      )}
+
+      {/* ── CUSTOMERS ─────────────────────────────────────────── */}
+      {tab === 'Customers' && (
+        <div className="space-y-6">
+          {customers.isLoading ? <p className="text-sm text-gray-400">Loading…</p> : customers.data ? (
+            <>
+              {/* KPI cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="card p-4">
+                  <p className="text-xs text-gray-500 mb-1">Active Customers</p>
+                  <p className="text-2xl font-bold text-gray-900">{customers.data.total_active}</p>
+                </div>
+                <div className="card p-4">
+                  <p className="text-xs text-gray-500 mb-1">New This Month</p>
+                  <p className="text-2xl font-bold text-green-700">{customers.data.new_this_month}</p>
+                </div>
+                <div className="card p-4">
+                  <p className="text-xs text-gray-500 mb-1">At Risk</p>
+                  <p className={`text-2xl font-bold ${customers.data.at_risk > 0 ? 'text-amber-600' : 'text-gray-900'}`}>{customers.data.at_risk}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">no purchase in 30+ days</p>
+                </div>
+                <div className="card p-4">
+                  <p className="text-xs text-gray-500 mb-1">Inactive</p>
+                  <p className="text-2xl font-bold text-gray-400">{customers.data.total_inactive}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Acquisition trend */}
+                <div className="card p-5">
+                  <h2 className="text-sm font-semibold text-gray-700 mb-4">Customer Acquisition — Last 6 Months</h2>
+                  {customers.data.acquisition_trend?.length ? (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <BarChart data={customers.data.acquisition_trend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="month" tickFormatter={(m: string) => m.slice(5)} tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <Tooltip formatter={(v: any) => [v, 'New Customers']} />
+                        <Bar dataKey="new_customers" fill="#16a34a" name="New Customers" radius={[3, 3, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : <div className="h-48 flex items-center justify-center text-gray-300 text-sm">No data</div>}
+                </div>
+
+                {/* Revenue by category */}
+                <div className="card p-5">
+                  <h2 className="text-sm font-semibold text-gray-700 mb-4">Customers by Category</h2>
+                  {customers.data.by_category?.length ? (
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={customers.data.by_category}
+                          dataKey="count"
+                          nameKey="category"
+                          cx="50%" cy="50%"
+                          outerRadius={80}
+                          label={({ category, count }: any) => `${category}: ${count}`}
+                        >
+                          {customers.data.by_category.map((_: any, i: number) => (
+                            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : <div className="h-48 flex items-center justify-center text-gray-300 text-sm">No categories</div>}
+                </div>
+              </div>
+
+              {/* Leaderboard */}
+              {customers.data.leaderboard?.length ? (
+                <div className="card overflow-hidden">
+                  <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-gray-700">Customer Leaderboard</h2>
+                    <span className="text-xs text-gray-400">{customers.data.leaderboard.length} customers</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {['#', 'Customer', 'Category', 'Status', 'Total Revenue (PKR)', 'Liters', 'Transactions', 'Last Purchase'].map(h => (
+                            <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {customers.data.leaderboard.map((c: any, i: number) => (
+                          <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
+                            <td className="px-4 py-2 text-gray-400 text-xs">{i + 1}</td>
+                            <td className="px-4 py-2 font-medium text-gray-800">{c.name}</td>
+                            <td className="px-4 py-2 text-gray-500 text-xs">{c.category || '—'}</td>
+                            <td className="px-4 py-2">
+                              <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                                c.status === 'active' ? 'bg-green-100 text-green-700'
+                                : c.status === 'new' ? 'bg-blue-100 text-blue-700'
+                                : c.status === 'at_risk' ? 'bg-amber-100 text-amber-700'
+                                : 'bg-gray-100 text-gray-500'
+                              }`}>{c.status}</span>
+                            </td>
+                            <td className="px-4 py-2 font-bold text-green-700">{Number(c.total_revenue).toLocaleString('en-PK')}</td>
+                            <td className="px-4 py-2">{Number(c.total_liters).toFixed(1)} L</td>
+                            <td className="px-4 py-2 text-center">{c.transaction_count}</td>
+                            <td className="px-4 py-2 text-xs text-gray-500">{c.last_purchase || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          ) : <div className="card p-8 text-center text-gray-400 text-sm">No customer data</div>}
         </div>
       )}
 

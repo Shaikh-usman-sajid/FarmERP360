@@ -80,6 +80,13 @@ export default function DashboardPage() {
         <StatCard icon="💵" label="Capital Invested" value={`PKR ${Number(data?.total_investor_capital ?? 0).toLocaleString()}`} color="blue" />
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard icon="👥" label="Total Customers" value={data?.total_customers ?? 0} color="blue" />
+        <StatCard icon="🆕" label="New This Month" value={data?.new_customers_this_month ?? 0} color="green" />
+        <StatCard icon="📋" label="Outstanding Receivables" value={`PKR ${Number(data?.outstanding_receivables ?? 0).toLocaleString()}`} color="amber" />
+        <StatCard icon="🏆" label="Top Customer" value={data?.top_customers_this_month?.[0]?.name ?? '—'} sub={data?.top_customers_this_month?.[0] ? `PKR ${Number(data.top_customers_this_month[0].revenue).toLocaleString()} this month` : 'No sales yet'} color="purple" />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Milk Trend Chart */}
         <div className="lg:col-span-2 card p-5">
@@ -117,15 +124,37 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Top Customers Widget */}
+      {(data?.top_customers_this_month?.length ?? 0) > 0 && (
+        <div className="mt-6 card p-5">
+          <h2 className="text-base font-semibold text-gray-800 mb-4">Top Customers This Month</h2>
+          <div className="space-y-2">
+            {data!.top_customers_this_month.map((c: any, i: number) => (
+              <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                <div className="flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-full bg-green-100 text-green-700 text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                  <span className="text-sm font-medium text-gray-800">{c.name}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm font-bold text-green-700">PKR {Number(c.revenue).toLocaleString()}</span>
+                  <span className="text-xs text-gray-400 ml-2">{Number(c.liters).toFixed(1)}L</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Quick Links */}
       <div className="mt-6 card p-5">
         <h2 className="text-base font-semibold text-gray-800 mb-4">Quick Actions</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[
             { icon: '🐐', label: 'Add Animal', href: '/animals' },
             { icon: '🥛', label: 'Record Milk', href: '/milk' },
             { icon: '💉', label: 'Add Vaccination', href: '/vaccination' },
             { icon: '📦', label: 'Stock Update', href: '/inventory' },
+            { icon: '👤', label: 'New Customer', href: '/admin/customers' },
           ].map(item => (
             <a key={item.href} href={item.href}
               className="flex flex-col items-center p-4 bg-gray-50 hover:bg-green-50 rounded-xl border border-gray-200 hover:border-green-300 transition-all text-center">

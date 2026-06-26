@@ -1,6 +1,7 @@
 'use client'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { accountingAPI } from '@/lib/api'
+import { accountingAPI, customerCategoriesAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
 
@@ -97,13 +98,28 @@ function statusBadgeClass(status: string) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ReceivablesPage() {
+  const [customerSearch, setCustomerSearch] = useState('')
+  const [categoryFilter, setCategoryFilter] = useState('')
+
   const { data: report, isLoading, isError } = useQuery<ARReport>({
     queryKey: ['accounts-receivable'],
     queryFn: () => accountingAPI.getAccountsReceivable().then((r) => r.data),
     refetchOnWindowFocus: false,
   })
 
-  const invoices: ARInvoice[] = Array.isArray(report?.invoices) ? report!.invoices : []
+  const { data: categoriesData } = useQuery({
+    queryKey: ['customer-categories'],
+    queryFn: () => customerCategoriesAPI.list({ per_page: 100, is_active: true }).then(r => r.data.data?.items ?? []),
+  })
+  const categories: any[] = categoriesData ?? []
+
+  const allInvoices: ARInvoice[] = Array.isArray(report?.invoices) ? report!.invoices : []
+  const invoices = allInvoices.filter(inv => {
+    const name = (inv.customer_name ?? '').toLowerCase()
+    if (customerSearch && !name.includes(customerSearch.toLowerCase())) return false
+    if (categoryFilter && !name.includes(categoryFilter.toLowerCase())) return false
+    return true
+  })
   const agingBuckets = buildAgingBuckets(invoices)
 
   return (
@@ -148,6 +164,49 @@ export default function ReceivablesPage() {
           filename="farmerp360-receivables"
           title="Accounts Receivable"
         />
+      </div>
+
+      {/* ── Filters ── */}
+      <div className="card p-4 mb-5">
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Search Customer</label>
+            <input
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="Customer name..."
+              value={customerSearch}
+              onChange={e => setCustomerSearch(e.target.value)}
+            />
+          </div>
+          {categories.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
+              <select
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+              >
+                <option value="">All Categories</option>
+                {categories.map((c: any) => (
+                  <option key={c.id} value={c.name.trim()}>{c.name.trim()}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          {(customerSearch || categoryFilter) && (
+            <button
+              onClick={() => { setCustomerSearch(''); setCategoryFilter('') }}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 text-gray-600"
+            >
+              ✕ Clear
+            </button>
+          )}
+          {(customerSearch || categoryFilter) && (
+            <span className="text-xs text-gray-400 self-end pb-2">
+              Showing {invoices.length} of {allInvoices.length} invoices
+            </span>
+          )}
+        </div>
       </div>
 
       {/* ── Summary Cards ── */}

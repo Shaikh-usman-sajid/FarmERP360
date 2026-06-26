@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { accountingAPI } from '@/lib/api'
+import { accountingAPI, analyticsAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
 import {
@@ -164,6 +164,11 @@ export default function ProfitLossPage() {
     queryFn: () =>
       accountingAPI.getProfitLoss(queryFrom, queryTo).then((r) => r.data.data ?? r.data),
     enabled: !!(queryFrom && queryTo),
+  })
+
+  const { data: custAnalytics } = useQuery({
+    queryKey: ['analytics-customers-pl'],
+    queryFn: () => analyticsAPI.customerAnalytics(12).then(r => r.data.data),
   })
 
   const handleGenerate = () => {
@@ -509,6 +514,46 @@ export default function ProfitLossPage() {
               Generated {getToday()} &mdash; All amounts in Pakistani Rupees (PKR)
             </div>
           </div>
+
+          {/* Revenue by Customer Category */}
+          {custAnalytics?.leaderboard?.length ? (
+            <div className="card overflow-hidden no-print">
+              <div className="px-5 py-3 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Revenue by Customer — Last 12 Months</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Milk sales per customer (all-time, last 12 months)</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {['Customer', 'Category', 'Revenue (PKR)', 'Liters', 'Transactions', 'Status'].map(h => (
+                        <th key={h} className="px-4 py-2 text-left text-xs font-semibold text-gray-500">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {custAnalytics.leaderboard.slice(0, 10).map((c: any, i: number) => (
+                      <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
+                        <td className="px-4 py-2 font-medium text-gray-800">{c.name}</td>
+                        <td className="px-4 py-2 text-gray-500 text-xs">{c.category || '—'}</td>
+                        <td className="px-4 py-2 font-bold text-green-700">{Number(c.total_revenue).toLocaleString('en-PK')}</td>
+                        <td className="px-4 py-2">{Number(c.total_liters).toFixed(1)} L</td>
+                        <td className="px-4 py-2 text-center">{c.transaction_count}</td>
+                        <td className="px-4 py-2">
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
+                            c.status === 'active' ? 'bg-green-100 text-green-700'
+                            : c.status === 'new' ? 'bg-blue-100 text-blue-700'
+                            : c.status === 'at_risk' ? 'bg-amber-100 text-amber-700'
+                            : 'bg-gray-100 text-gray-500'
+                          }`}>{c.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </DashboardLayout>

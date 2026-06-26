@@ -9,7 +9,7 @@ from app.models.models import (
     Animal, MilkProduction, MilkSale, Product, Employee,
     Investor, Invoice, Payment, Notification, AuditLog,
     User, UserRole, AnimalStatus, InvoiceStatus, AttendanceRecord,
-    Vaccination, Treatment
+    Vaccination, Treatment, Customer, CustomerCategory
 )
 
 router = APIRouter(tags=["Dashboard & Reports"])
@@ -72,6 +72,46 @@ def owner_dashboard(db: Session = Depends(get_db), current_user: User = Depends(
         ).scalar() or 0
         milk_trend.append({"date": str(d), "liters": float(qty)})
 
+    # Customer stats
+    total_customers = db.query(func.count(Customer.id)).filter(
+        Customer.organization_id == org_id, Customer.is_active == True
+    ).scalar() or 0
+
+    new_customers_month = db.query(func.count(Customer.id)).filter(
+        Customer.organization_id == org_id,
+        Customer.is_active == True,
+        Customer.created_at >= datetime(month_start.year, month_start.month, 1)
+    ).scalar() or 0
+
+    outstanding_receivables = db.query(
+        func.coalesce(func.sum(Invoice.total_amount - Invoice.paid_amount), 0)
+    ).filter(
+        Invoice.organization_id == org_id,
+        Invoice.status.in_([InvoiceStatus.SENT, InvoiceStatus.OVERDUE])
+    ).scalar() or 0
+
+    # Top 5 customers by milk sale revenue this month
+    top_customers_rows = db.query(
+        MilkSale.customer_id,
+        func.coalesce(func.sum(MilkSale.total_amount), 0).label("revenue"),
+        func.coalesce(func.sum(MilkSale.quantity_liters), 0).label("liters"),
+    ).filter(
+        MilkSale.organization_id == org_id,
+        MilkSale.customer_id.isnot(None),
+        MilkSale.sale_date >= month_start,
+    ).group_by(MilkSale.customer_id).order_by(func.sum(MilkSale.total_amount).desc()).limit(5).all()
+
+    cust_ids = [r.customer_id for r in top_customers_rows]
+    cust_map = {}
+    if cust_ids:
+        custs = db.query(Customer).filter(Customer.id.in_(cust_ids)).all()
+        cust_map = {c.id: c.name for c in custs}
+
+    top_customers = [
+        {"name": cust_map.get(r.customer_id, "Unknown"), "revenue": float(r.revenue), "liters": float(r.liters)}
+        for r in top_customers_rows
+    ]
+
     return {
         "success": True,
         "data": {
@@ -85,7 +125,11 @@ def owner_dashboard(db: Session = Depends(get_db), current_user: User = Depends(
             "pending_invoices": pending_invoices,
             "low_stock_items": low_stock,
             "vaccinations_due_soon": vaccinations_due,
-            "milk_trend_7days": milk_trend
+            "milk_trend_7days": milk_trend,
+            "total_customers": total_customers,
+            "new_customers_this_month": new_customers_month,
+            "outstanding_receivables": float(outstanding_receivables),
+            "top_customers_this_month": top_customers,
         }
     }
 

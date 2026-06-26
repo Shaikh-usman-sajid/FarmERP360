@@ -283,7 +283,7 @@ export const forecastingAPI = {
 }
 
 export const customerCategoriesAPI = {
-  list: () => api.get('/customer-categories'),
+  list: (params?: object) => api.get('/customer-categories', { params }),
   create: (data: object) => api.post('/customer-categories', data),
   update: (id: string, data: object) => api.put(`/customer-categories/${id}`, data),
   delete: (id: string) => api.delete(`/customer-categories/${id}`),
@@ -312,6 +312,7 @@ export const analyticsAPI = {
   overview: () => api.get('/analytics/overview'),
   milkTrends: (months?: number) => api.get('/analytics/milk-trends', { params: { months } }),
   milkSalesByCustomer: (months?: number) => api.get('/analytics/milk-sales-by-customer', { params: { months } }),
+  customerAnalytics: (months?: number) => api.get('/analytics/customers', { params: { months } }),
   animalProfitability: () => api.get('/analytics/animal-profitability'),
   cashFlow: (months?: number) => api.get('/analytics/cash-flow', { params: { months } }),
   farmHealth: (months?: number) => api.get('/analytics/farm-health', { params: { months } }),
