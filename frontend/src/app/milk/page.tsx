@@ -105,7 +105,6 @@ export default function MilkPage() {
   const { data: milkCustomersData } = useQuery({
     queryKey: ['customers-milk'],
     queryFn: () => customersAPI.list({ per_page: 500, is_active: true }).then(r => r.data.data.items),
-    enabled: showSale || tab === 'sales',
   })
 
   // ── Mutations ─ production ─────────────────────────
