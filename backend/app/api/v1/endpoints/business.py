@@ -178,11 +178,22 @@ def get_invoice(inv_id: str, db: Session = Depends(get_db), current_user: User =
 
 @inv_invoice_router.post("")
 def create_invoice(payload: InvoiceCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.models import Customer
+    customer_name = payload.customer_name
+    customer_id = payload.customer_id
+    if customer_id:
+        cust = db.query(Customer).filter(
+            Customer.id == customer_id,
+            Customer.organization_id == get_org(current_user),
+        ).first()
+        if cust:
+            customer_name = customer_name or cust.name
     subtotal = sum(li.total for li in payload.line_items)
     inv = Invoice(
         organization_id=get_org(current_user),
         invoice_number=gen_invoice_number(),
-        customer_name=payload.customer_name,
+        customer_id=customer_id,
+        customer_name=customer_name,
         issue_date=payload.issue_date,
         due_date=payload.due_date,
         subtotal=subtotal,

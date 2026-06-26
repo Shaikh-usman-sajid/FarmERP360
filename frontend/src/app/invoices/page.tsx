@@ -1,14 +1,14 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { invoicesAPI, adminAPI } from '@/lib/api'
+import { invoicesAPI, adminAPI, customersAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import toast from 'react-hot-toast'
 import ExportButtons from '@/components/ui/ExportButtons'
 
 const today = new Date().toISOString().split('T')[0]
 const statusColors: any = { draft: 'badge-gray', sent: 'badge-info', paid: 'badge-active', overdue: 'badge-danger', cancelled: 'badge-gray' }
-const emptyForm = { customer_name: '', issue_date: today, due_date: '', notes: '', line_items: [{ description: '', quantity: 1, unit_price: 0, total: 0 }] }
+const emptyForm = { customer_id: '', customer_name: '', issue_date: today, due_date: '', notes: '', line_items: [{ description: '', quantity: 1, unit_price: 0, total: 0 }] }
 
 export default function InvoicesPage() {
   const qc = useQueryClient()
@@ -50,6 +50,12 @@ export default function InvoicesPage() {
       ...(dueDateTo ? { due_date_to: dueDateTo } : {}),
     }).then(r => r.data.data),
   })
+
+  const { data: customersData } = useQuery({
+    queryKey: ['customers-all'],
+    queryFn: () => customersAPI.list({ per_page: 500, is_active: true }).then(r => r.data.data.items),
+  })
+  const customers: any[] = customersData ?? []
 
   const createMutation = useMutation({
     mutationFn: (d: any) => invoicesAPI.create(d),
@@ -202,13 +208,31 @@ export default function InvoicesPage() {
               e.preventDefault()
               const d: any = { ...form }
               if (!d.due_date) delete d.due_date
+              if (!d.customer_id) delete d.customer_id
               d.line_items = d.line_items.map((li: any) => ({ ...li, quantity: parseFloat(li.quantity), unit_price: parseFloat(li.unit_price), total: parseFloat(li.total) }))
               createMutation.mutate(d)
             }} className="p-5 space-y-5">
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Customer Name</label>
-                  <input className="input" value={form.customer_name} onChange={e => setForm({ ...form, customer_name: e.target.value })} />
+                <div className="col-span-2">
+                  <label className="label">Customer</label>
+                  <select className="input" value={form.customer_id}
+                    onChange={e => {
+                      const cust = customers.find((c: any) => c.id === e.target.value)
+                      setForm({ ...form, customer_id: e.target.value, customer_name: cust ? cust.name : form.customer_name })
+                    }}>
+                    <option value="">— Select customer (or enter name below) —</option>
+                    {customers.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}{c.category_name ? ` (${c.category_name.trim()})` : ''}{c.phone ? ` — ${c.phone}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <label className="label">Customer Name {!form.customer_id && <span className="text-gray-400 font-normal">(or type manually)</span>}</label>
+                  <input className="input" placeholder="e.g. Ahmed Ali"
+                    value={form.customer_name}
+                    onChange={e => setForm({ ...form, customer_name: e.target.value })} />
                 </div>
                 <div>
                   <label className="label">Issue Date *</label>

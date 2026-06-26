@@ -613,6 +613,7 @@ class InvoiceLineItemCreate(BaseModel):
 
 
 class InvoiceCreate(BaseModel):
+    customer_id: Optional[str] = None
     customer_name: Optional[str] = None
     issue_date: date
     due_date: Optional[date] = None
