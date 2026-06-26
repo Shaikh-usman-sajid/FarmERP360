@@ -33,13 +33,13 @@ Access: http://216.73.188.187:3000 (or http://localhost)
 ### Backend
 ```
 backend/app/
-  main.py                    # FastAPI app, CORS, router registration (17 routers)
+  main.py                    # FastAPI app, CORS, router registration (18 routers)
   core/
     config.py                # Settings (env-based, pydantic-settings)
     database.py              # SQLAlchemy engine + session
     security.py              # JWT create/verify, password hash
     deps.py                  # get_current_user, require_roles (Depends)
-  models/models.py           # All 39 SQLAlchemy ORM tables + enums
+  models/models.py           # All 40 SQLAlchemy ORM tables + enums
   schemas/                   # Pydantic request/response schemas
   api/v1/endpoints/
     auth.py                  # login, refresh, logout, change-password
@@ -64,6 +64,7 @@ backend/app/
     admin.py                 # system settings CRUD, enhanced audit logs, animal QR code (PNG),
                              #   WhatsApp Business API alerts, Easypaisa/JazzCash payment params,
                              #   payment webhooks (/webhooks/easypaisa, /webhooks/jazzcash)
+    vaccine_types.py         # vaccine/medicine name CRUD per species; used as dropdown in vaccination form
     dashboard.py             # role dashboards (owner/farm/accounting/investor), notifications
   seed.py                    # idempotent demo data
   init_db.py                 # create tables on startup
@@ -72,7 +73,7 @@ backend/app/
 ### Frontend
 ```
 frontend/src/
-  app/                       # Next.js App Router pages (37 pages)
+  app/                       # Next.js App Router pages (38 pages)
     layout.tsx               # Root layout (QueryClientProvider, Toaster)
     page.tsx                 # Root redirect (/ → /dashboard or /login)
     login/page.tsx           # Login page with demo credential buttons
@@ -99,6 +100,7 @@ frontend/src/
     reports/page.tsx             # 8-tab analytics dashboard
     forecasting/page.tsx         # Feed, Cash Flow, Crop Yield tabs
     admin/settings/page.tsx      # 4-tab admin panel: Org, Preferences, Integrations, Audit Logs
+    admin/vaccine-types/page.tsx # Vaccine & Medicine name CRUD; owner/super_admin only
     accounting/chart-of-accounts/page.tsx
     accounting/journal-entries/page.tsx
     accounting/ledger/page.tsx
@@ -133,6 +135,12 @@ docker compose up -d --force-recreate frontend
 ```
 `docker compose restart` does NOT re-read docker-compose.yml env vars.
 
+**Critical: Frontend code changes require a full rebuild** (Next.js runs as `NODE_ENV: production`):
+```bash
+docker compose up -d --build frontend   # rebuilds the image — required for code changes
+# --force-recreate alone does NOT pick up code changes in production mode
+```
+
 ## Database
 
 ### Conventions
@@ -148,11 +156,21 @@ UserRole: super_admin, owner, farm_manager, vet_manager, accountant,
           employee, data_entry, investor, pallai_customer
 AnimalSpecies: BUFFALO, GOAT, CATTLE, OTHER
 AnimalStatus: active, sold, deceased, transferred
+OwnershipType: FARM, PALLAI_WITH_ANIMAL, INSTALLMENT  # SQLAlchemy sends NAME (uppercase) to PostgreSQL
 MilkSession: morning, evening
 InvoiceStatus: draft, sent, paid, overdue, cancelled
 InventoryTxType: IN, OUT, ADJUST
 CropStatus: planned, growing, harvested, failed
 ```
+
+### Critical: SQLAlchemy PostgreSQL Enum Behavior
+SQLAlchemy sends the Python enum's `.name` attribute (UPPERCASE) to PostgreSQL, **not** the `.value`.
+When adding new enum values via Alembic raw DDL, use UPPERCASE:
+```python
+op.execute("ALTER TYPE ownershiptype ADD VALUE IF NOT EXISTS 'PALLAI_WITH_ANIMAL'")
+op.execute("ALTER TYPE ownershiptype ADD VALUE IF NOT EXISTS 'INSTALLMENT'")
+```
+Never use lowercase `'pallai_with_animal'` — SQLAlchemy will send `'PALLAI_WITH_ANIMAL'` and the insert will fail.
 
 ### Adding a new table
 1. Add model to `backend/app/models/models.py`

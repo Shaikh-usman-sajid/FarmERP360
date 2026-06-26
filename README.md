@@ -90,10 +90,13 @@ First boot takes 3–5 minutes (pulls images, installs deps, runs migrations, se
 docker compose logs -f backend
 docker compose logs -f frontend
 
-# Rebuild after code changes
+# Rebuild after code changes (full rebuild — required for frontend production mode)
 docker compose up --build
 
-# Restart single service
+# Rebuild only frontend after code changes (faster)
+docker compose up -d --build frontend
+
+# Restart single service (env vars only — does NOT pick up code changes for frontend)
 docker compose restart backend
 
 # Run migrations manually
@@ -123,16 +126,16 @@ farmerp360/
 │   └── nginx.conf
 ├── backend/
 │   ├── app/
-│   │   ├── api/v1/endpoints/   # 17 endpoint modules (see API Modules below)
+│   │   ├── api/v1/endpoints/   # 18 endpoint modules (see API Modules below)
 │   │   ├── core/               # config, database, security, deps
-│   │   ├── models/models.py    # SQLAlchemy ORM (39 tables)
+│   │   ├── models/models.py    # SQLAlchemy ORM (40 tables)
 │   │   └── schemas/            # Pydantic v2 schemas
 │   ├── alembic/                # DB migrations
 │   ├── seed.py                 # Idempotent demo data seed script
 │   └── requirements.txt
 └── frontend/
     └── src/
-        ├── app/                # 38 Next.js App Router pages (incl. /admin/settings)
+        ├── app/                # 38 Next.js App Router pages (incl. /admin/settings, /admin/vaccine-types)
         ├── components/layout/  # Sidebar (40+ links), AuthGuard, DashboardLayout
         ├── lib/api.ts          # Axios client + 110+ typed API functions
         └── store/authStore.ts  # Zustand auth state
@@ -167,6 +170,7 @@ farmerp360/
 | Admin           | System Settings (org, preferences, integration keys), Audit Log viewer,   |
 |                 | Animal QR code generation, WhatsApp alert service,                        |
 |                 | Easypaisa + JazzCash payment params + webhooks                            |
+| Vaccine Types   | Vaccine & Medicine name CRUD per species; used as dropdown in vaccination forms |
 | Dashboard       | Owner, Farm, Accounting, Investor dashboards + Notifications              |
 
 Full Swagger docs at: http://localhost:8000/docs

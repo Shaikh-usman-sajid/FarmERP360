@@ -2,7 +2,7 @@
 
 **Version**: 1.0  
 **Status**: In Progress — Phases 1–4, 6 & 7 (partial) complete; Phase 5 (Mobile) not started  
-**Last Reviewed**: 2026-06-25  
+**Last Reviewed**: 2026-06-26  
 **Project Type**: Cloud-Native SaaS Platform  
 **Source**: myscope.txt  
 
@@ -49,17 +49,18 @@ FarmERP360 is a scalable SaaS-ready platform covering:
 | Authentication & RBAC | ✅ | JWT, 9 roles, refresh tokens |
 | User Management | ✅ | CRUD, role filtering |
 | Farm Management | ✅ | Organization → Farm structure |
-| Animal Management | ✅ | CRUD, ear tag, RFID, species, status, breed dropdown, edit modal (owner/farm_manager), CSV bulk import |
+| Animal Management | ✅ | CRUD, ear tag, RFID, species, status, breed dropdown, edit modal (owner/farm_manager), CSV bulk import; ownership types: Farm / Pallai with Animal (linked customer) / Installment |
 | Animal Breed Registry | ✅ | Per-org breed management (/admin/breeds), dropdown in animal forms, species filter |
 | Animal Current Value | ✅ | Dynamic: purchase_price + cumulative feed cost; purchase_price visible to owner/accountant only |
 | Animal QR Code Deep Link | ✅ | QR scan → /animals/[id] detail page (was: dashboard) |
 | Animal Detail Page | ✅ | /animals/[id]: weight history, vaccinations, treatments, milk records |
 | Animal Photos | ✅ | Upload, gallery |
 | Weight Tracking | ✅ | History per animal; initial weight captured at registration |
-| Vaccination | ✅ | Schedule, due dates |
-| Treatment | ✅ | History, cost tracking |
+| Vaccination | ✅ | Schedule, due dates; vaccine/medicine name dropdown populated from Admin → Vaccine & Medicine Names (species-filtered) |
+| Vaccine & Medicine Names Admin | ✅ | /admin/vaccine-types — owner/super_admin manage per-species vaccine & medicine name list used in vaccination form |
+| Treatment | ✅ | History, cost tracking; View (split panel: left = full animal history list, right = detail) + Edit modal (all fields + mark resolved); Medicine column removed from table view |
 | Breeding Records | ✅ | Expected/actual delivery dates |
-| Milk Production | ✅ | Morning/evening sessions, 180 seed records |
+| Milk Production | ✅ | Morning/evening sessions, 180 seed records; Sales tab shows current-month totals (Total Revenue, Cash Sales, Credit Sales) updating with filters; CSV bulk import for sales records |
 | Inventory Management | ✅ | Products, IN/OUT/ADJUST transactions |
 | Feed Management | ✅ | Dedicated module: feed types, stock tracking, daily consumption |
 | Agriculture Management | ✅ | Fields, crop cycles, harvests |
@@ -101,7 +102,7 @@ FarmERP360 is a scalable SaaS-ready platform covering:
 | Module | Status | Notes |
 |--------|--------|-------|
 | Customer Management | ✅ | Full CRUD with subscriptions tab |
-| Animal Ownership | ✅ | Ownership tracking (farm/investor/shared/pallai) |
+| Animal Ownership | ✅ | Ownership tracking: Farm, Pallai with Animal (linked to specific Pallai customer), Installment |
 | Subscription Packages | ✅ | CRUD with feed/vet inclusion flags |
 | Recurring Billing | ✅ | Auto-generate invoices for active subscriptions by month |
 | Invoices | ✅ | Pallai invoices linked to subscriptions via subscription_id |

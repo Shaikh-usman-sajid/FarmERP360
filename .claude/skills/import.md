@@ -249,3 +249,4 @@ Animals page has the full working implementation:
 |------|-----------------|--------------|--------|
 | Animals | `POST /animals/import` | `animalsAPI.importBulk` | ✅ Done |
 | Milk Production | `POST /milk-productions/import` | `dairyAPI.importBulk` | ✅ Done |
+| Milk Sales | `POST /milk-sales/import` | `dairyAPI.importSales` | ✅ Done |

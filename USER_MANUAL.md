@@ -1,6 +1,6 @@
 # FarmERP360 — User Manual
 
-**Version**: 1.1 | **Last Updated**: 2026-06-25  
+**Version**: 1.2 | **Last Updated**: 2026-06-26  
 **Platform**: Web (http://216.73.188.187:3000 or http://localhost)
 
 ---
@@ -98,6 +98,8 @@ The dashboard shows a summary of key performance indicators (KPIs) for your role
    - **Breed**: e.g. Nili-Ravi, Beetal, Kamori
    - **Gender**, **Date of Birth** (or Age)
    - **Status**: Active, Sold, Deceased, Transferred
+   - **Ownership**: Farm, Pallai with Animal, or Installment
+     - Selecting **Pallai with Animal** reveals a **Customer** dropdown — choose the Pallai customer who owns this animal
    - **Purchase Price** (PKR)
 4. Click **Save**
 
@@ -146,9 +148,20 @@ The dashboard shows a summary of key performance indicators (KPIs) for your role
 
 ### Milk Sales
 
-1. Click **Record Sale**
-2. Enter buyer name, quantity (liters), rate per liter (PKR), date
-3. The system calculates total automatically
+1. Click the **Sales** tab on the Milk Production page
+2. The summary cards at the top show **current-month totals**: Total Revenue, Cash Sales, Credit Sales
+   - When you apply date filters, the cards update to reflect the filtered period
+3. Click **Record Sale** to add a new sale: buyer name, quantity (liters), rate per liter (PKR), payment type (Cash / Credit), date
+4. The system calculates the total amount automatically
+
+### Importing Milk Sales from CSV
+
+1. Click **Import CSV** on the Sales tab
+2. Click **Download Template** to get the required column format
+3. Fill in the template and save as CSV
+4. Click **Choose CSV File** → select your file
+5. Review the preview table showing parsed rows
+6. Click **Import** — duplicate entries are skipped automatically
 
 ---
 
@@ -160,8 +173,9 @@ The dashboard shows a summary of key performance indicators (KPIs) for your role
 
 1. Go to **Vaccination**
 2. Click **Add Vaccination**
-3. Select animal, vaccine name, date administered, next due date
-4. Records show as overdue (highlighted) when the next due date passes
+3. Select an **Animal** — once selected, the **Vaccine / Medicine Name** field switches to a dropdown showing names configured for that species (see Admin → Vaccine & Medicine Names). If no names are configured for that species, a free-text input appears instead.
+4. Fill in date administered, next due date, dose, and administered by
+5. Records show as overdue (highlighted in red) when the next due date passes; yellow when due within 7 days
 
 ### Treatments
 
@@ -169,8 +183,22 @@ The dashboard shows a summary of key performance indicators (KPIs) for your role
 
 1. Go to **Treatments**
 2. Click **Add Treatment**
-3. Select animal, diagnosis, treatment given, cost (PKR), vet name, date
+3. Select animal, diagnosis, treatment given, medicine used, cost (PKR), vet name, date
 4. Treatment costs are factored into animal profitability reports
+
+### Viewing Treatment History (Split Panel)
+
+1. Click **View** on any treatment row
+2. A split panel opens:
+   - **Left sidebar** — all treatments for the same animal, sorted by date; click any row to jump to it
+   - **Right panel** — full details of the selected treatment including medicine used, diagnosis, cost, vet, and resolution status
+
+### Editing a Treatment
+
+1. Click **Edit** on any treatment row
+2. A modal opens with all fields editable: diagnosis, treatment, medicine used, cost, vet, date
+3. Check **Mark as Resolved** to close the case
+4. Click **Save Changes**
 
 ### Breeding Records
 
@@ -568,7 +596,24 @@ Go to **Forecasting** in the sidebar. Three tabs:
 ## 19. Admin Settings
 
 **Access**: Super Admin, Owner only  
-Navigate to **Admin Settings** in the sidebar (under the Admin section).
+Navigate to the **Admin** section in the sidebar.
+
+### Vaccine & Medicine Names
+
+Go to **Admin → Vaccine & Medicine Names** to manage the dropdown list that appears in the Vaccination form.
+
+1. Click **Add New** to create a name:
+   - **Name**: e.g. "FMD Vaccine", "Oxytetracycline"
+   - **Type**: Vaccine or Medicine
+   - **Species**: leave blank for "All Species", or pick Goat / Buffalo / Cattle / Other
+2. Use the **Species** and **Type** filters to find existing entries
+3. Click **Edit** to rename or reclassify an entry; click **Delete** to remove it
+
+When a vet records a vaccination and selects an animal, the dropdown automatically shows only the names applicable to that animal's species (plus any "All Species" entries).
+
+### Admin Settings Page
+
+Navigate to **Admin → Admin Settings** for org configuration.
 
 ### Organization Tab
 Set your farm's display name, address, phone, email, NTN (tax number), and registration number. This information appears on printed invoices and reports.
