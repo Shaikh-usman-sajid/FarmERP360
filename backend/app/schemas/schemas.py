@@ -640,6 +640,8 @@ class InvoiceOut(BaseModel):
 
 class PaymentCreate(BaseModel):
     invoice_id: Optional[str] = None
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
     amount: Decimal
     payment_date: date
     payment_method: Optional[str] = None
@@ -650,9 +652,12 @@ class PaymentCreate(BaseModel):
 class PaymentOut(BaseModel):
     id: str
     invoice_id: Optional[str]
+    customer_id: Optional[str] = None
+    customer_name: Optional[str] = None
     amount: Decimal
     payment_date: date
     payment_method: Optional[str]
+    reference: Optional[str] = None
     created_at: datetime
 
     class Config:

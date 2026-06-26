@@ -227,17 +227,74 @@ def update_invoice(inv_id: str, payload: dict, db: Session = Depends(get_db), cu
 pay_router = APIRouter(prefix="/payments")
 
 
+def _payment_out(p: Payment) -> dict:
+    from app.models.models import Customer
+    d = PaymentOut.from_orm(p).dict()
+    if p.customer:
+        d["customer_name"] = p.customer.name
+    elif p.invoice and p.invoice.customer_name:
+        d["customer_name"] = p.invoice.customer_name
+    return d
+
+
 @pay_router.get("")
-def list_payments(page: int = Query(1, ge=1), per_page: int = Query(20, le=100), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    query = db.query(Payment).filter(Payment.organization_id == get_org(current_user))
+def list_payments(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, le=100),
+    search: Optional[str] = None,
+    payment_method: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from sqlalchemy.orm import joinedload
+    from sqlalchemy import or_
+    query = db.query(Payment).options(
+        joinedload(Payment.invoice), joinedload(Payment.customer)
+    ).filter(Payment.organization_id == get_org(current_user))
+    if search:
+        like = f"%{search}%"
+        query = query.filter(or_(Payment.reference.ilike(like), Payment.notes.ilike(like)))
+    if payment_method:
+        query = query.filter(Payment.payment_method == payment_method)
+    if date_from:
+        query = query.filter(Payment.payment_date >= date_from)
+    if date_to:
+        query = query.filter(Payment.payment_date <= date_to)
+    if customer_id:
+        query = query.filter(Payment.customer_id == customer_id)
     total = query.count()
     items = query.order_by(Payment.payment_date.desc()).offset((page-1)*per_page).limit(per_page).all()
-    return {"success": True, "data": {"total": total, "items": [PaymentOut.from_orm(p) for p in items]}}
+    return {"success": True, "data": {"total": total, "items": [_payment_out(p) for p in items]}}
 
 
 @pay_router.post("")
 def create_payment(payload: PaymentCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    p = Payment(organization_id=get_org(current_user), created_by=current_user.id, **payload.dict())
+    from app.models.models import Customer
+    from sqlalchemy.orm import joinedload
+    customer_name = payload.customer_name
+    customer_id = payload.customer_id
+    if customer_id:
+        cust = db.query(Customer).filter(
+            Customer.id == customer_id,
+            Customer.organization_id == get_org(current_user),
+        ).first()
+        if cust:
+            customer_name = customer_name or cust.name
+    p = Payment(
+        organization_id=get_org(current_user),
+        created_by=current_user.id,
+        invoice_id=payload.invoice_id or None,
+        customer_id=customer_id,
+        customer_name=customer_name,
+        amount=payload.amount,
+        payment_date=payload.payment_date,
+        payment_method=payload.payment_method,
+        reference=payload.reference,
+        notes=payload.notes,
+    )
     db.add(p)
     if payload.invoice_id:
         inv = db.query(Invoice).filter(Invoice.id == payload.invoice_id).first()
@@ -247,7 +304,8 @@ def create_payment(payload: PaymentCreate, db: Session = Depends(get_db), curren
                 inv.status = InvoiceStatus.PAID
     db.commit()
     db.refresh(p)
-    return {"success": True, "data": PaymentOut.from_orm(p)}
+    p = db.query(Payment).options(joinedload(Payment.invoice), joinedload(Payment.customer)).filter(Payment.id == p.id).first()
+    return {"success": True, "data": _payment_out(p)}
 
 
 router.include_router(inv_router)

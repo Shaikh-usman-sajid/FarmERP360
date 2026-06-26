@@ -731,6 +731,8 @@ class Payment(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     organization_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False, index=True)
     invoice_id = Column(UUID(as_uuid=False), ForeignKey("invoices.id"), index=True)
+    customer_id = Column(UUID(as_uuid=False), ForeignKey("customers.id"), nullable=True, index=True)
+    customer_name = Column(String(255), nullable=True)
     amount = Column(Numeric(14, 2), nullable=False)
     payment_date = Column(Date, nullable=False, index=True)
     payment_method = Column(String(100))
@@ -744,6 +746,7 @@ class Payment(Base):
     )
 
     invoice = relationship("Invoice", back_populates="payments")
+    customer = relationship("Customer", foreign_keys=[customer_id])
 
 
 # ─────────────────────────────────────────────
