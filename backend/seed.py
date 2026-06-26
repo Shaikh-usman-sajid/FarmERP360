@@ -474,9 +474,9 @@ def seed():
 
         # ── Customer Categories & Customers ──────────────────────────
         default_categories = [
-            ("Milk Customer",               "Customers who purchase milk directly"),
-            ("Pallai with Farm Animal",     "Pallai subscribers using the farm's animals"),
-            ("Pallai with Own Animal",      "Pallai subscribers who bring their own animal"),
+            ("Milk",           "Customers who purchase milk directly"),
+            ("Pallai",         "Pallai subscription customers"),
+            ("Meat / Katu",    "Customers who purchase animals for meat"),
         ]
         cat_map = {}
         for cat_name, cat_desc in default_categories:
@@ -495,10 +495,15 @@ def seed():
             cat_map[cat_name] = existing_cat
 
         demo_customers = [
-            ("Milk Customer",           "Ahmed Ali",    "0300-1234567", "35202-1234567-1", "House 12, Block A, Lahore",   "Lahore"),
-            ("Milk Customer",           "Bilal Khan",   "0312-9876543", "35202-9876543-2", "Plot 5, Gulberg, Lahore",      "Lahore"),
-            ("Pallai with Farm Animal", "Zafar Iqbal",  "0333-1122334", "35202-1122334-3", "Village Khaira, Gujranwala",   "Gujranwala"),
-            ("Pallai with Own Animal",  "Nadia Bibi",   "0345-5566778", "35202-5566778-4", "Street 7, Shadman, Lahore",    "Lahore"),
+            ("Milk",        "Ahmed Ali",        "0300-1234567", "35202-1234567-1", "House 12, Block A, Lahore",          "Lahore"),
+            ("Milk",        "Bilal Khan",       "0312-9876543", "35202-9876543-2", "Plot 5, Gulberg, Lahore",             "Lahore"),
+            ("Milk",        "Usman Tariq",      "0321-4455667", "35202-4455667-3", "House 45, Johar Town, Lahore",        "Lahore"),
+            ("Milk",        "Farhan Siddiqui",  "0333-7788990", "35202-7788990-4", "Street 3, DHA Phase 2, Lahore",       "Lahore"),
+            ("Milk",        "Sajid Mehmood",    "0301-2233445", "35202-2233445-5", "Mohalla Hussainabad, Faisalabad",     "Faisalabad"),
+            ("Milk",        "Khalid Hussain",   "0345-6677889", "35202-6677889-6", "Village Manga Mandi, Lahore",         "Lahore"),
+            ("Milk",        "Tariq Mahmood",    "0311-9900112", "35202-9900112-7", "Near Ravi Bridge, Shahdara, Lahore",  "Lahore"),
+            ("Pallai",      "Zafar Iqbal",      "0333-1122334", "35202-1122334-8", "Village Khaira, Gujranwala",          "Gujranwala"),
+            ("Pallai",      "Nadia Bibi",       "0345-5566778", "35202-5566778-9", "Street 7, Shadman, Lahore",           "Lahore"),
         ]
         for cat_name, cust_name, phone, cnic, address, city in demo_customers:
             existing_cust = db.query(Customer).filter(
