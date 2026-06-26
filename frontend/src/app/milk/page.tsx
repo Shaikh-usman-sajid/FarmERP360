@@ -1,7 +1,7 @@
 'use client'
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { dairyAPI, animalsAPI, accountingAPI } from '@/lib/api'
+import { dairyAPI, animalsAPI, customersAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -9,7 +9,7 @@ import toast from 'react-hot-toast'
 
 const today = new Date().toISOString().split('T')[0]
 const emptyProd = { animal_id: '', production_date: today, session: 'morning', quantity_liters: '', fat_percentage: '', remarks: '' }
-const emptySale = { vendor_id: '', buyer_name: '', sale_date: today, quantity_liters: '', price_per_liter: '120', payment_method: 'cash', notes: '' }
+const emptySale = { customer_id: '', buyer_name: '', sale_date: today, quantity_liters: '', price_per_liter: '120', payment_method: 'cash', notes: '' }
 
 const IMPORT_COLUMNS = [
   { key: 'animal_code',     label: 'Animal Code',  required: true,  example: 'C-02' },
@@ -64,7 +64,7 @@ export default function MilkPage() {
   const [saleForm, setSaleForm] = useState(emptySale)
   const [salesPage, setSalesPage] = useState(1)
 
-  const [saleFilter, setSaleFilter] = useState({ date_from: '', date_to: '', payment_method: '', vendor_id: '' })
+  const [saleFilter, setSaleFilter] = useState({ date_from: '', date_to: '', payment_method: '', customer_id: '' })
 
   // ── Queries ────────────────────────────────────────
   const { data: milkData } = useQuery({
@@ -97,14 +97,14 @@ export default function MilkPage() {
       ...(saleFilter.date_from      ? { date_from:       saleFilter.date_from }      : {}),
       ...(saleFilter.date_to        ? { date_to:         saleFilter.date_to }        : {}),
       ...(saleFilter.payment_method ? { payment_method:  saleFilter.payment_method } : {}),
-      ...(saleFilter.vendor_id      ? { vendor_id:       saleFilter.vendor_id }      : {}),
+      ...(saleFilter.customer_id    ? { customer_id:     saleFilter.customer_id }    : {}),
     }).then(r => r.data.data),
     enabled: tab === 'sales',
   })
 
-  const { data: vendorsData } = useQuery({
-    queryKey: ['vendors-list'],
-    queryFn: () => accountingAPI.getVendors({ per_page: 200 }).then(r => r.data),
+  const { data: milkCustomersData } = useQuery({
+    queryKey: ['customers-milk'],
+    queryFn: () => customersAPI.list({ per_page: 500, is_active: true }).then(r => r.data.data.items),
     enabled: showSale || tab === 'sales',
   })
 
@@ -227,8 +227,8 @@ export default function MilkPage() {
     e.preventDefault()
     saleMutation.mutate({
       sale_date: saleForm.sale_date,
-      vendor_id: saleForm.vendor_id || undefined,
-      buyer_name: saleForm.buyer_name || undefined,
+      customer_id: saleForm.customer_id || undefined,
+      buyer_name: saleForm.customer_id ? undefined : (saleForm.buyer_name || undefined),
       quantity_liters: parseFloat(saleForm.quantity_liters),
       price_per_liter: parseFloat(saleForm.price_per_liter),
       payment_method: saleForm.payment_method,
@@ -238,9 +238,9 @@ export default function MilkPage() {
 
   // ── Helpers ────────────────────────────────────────
   const resetProdFilter = () => { setProdFilter({ animal_id: '', date_from: '', date_to: '', session: '' }); setProdPage(1) }
-  const resetSaleFilter = () => { setSaleFilter({ date_from: '', date_to: '', payment_method: '', vendor_id: '' }); setSalesPage(1) }
+  const resetSaleFilter = () => { setSaleFilter({ date_from: '', date_to: '', payment_method: '', customer_id: '' }); setSalesPage(1) }
   const hasProdFilter = !!(prodFilter.animal_id || prodFilter.date_from || prodFilter.date_to || prodFilter.session)
-  const hasSaleFilter = !!(saleFilter.date_from || saleFilter.date_to || saleFilter.payment_method || saleFilter.vendor_id)
+  const hasSaleFilter = !!(saleFilter.date_from || saleFilter.date_to || saleFilter.payment_method || saleFilter.customer_id)
 
   const prodItems  = milkData?.items ?? []
   const salesItems = salesData?.items ?? []
@@ -251,7 +251,9 @@ export default function MilkPage() {
   const cashRevenue   = salesItems.filter((x: any) => x.payment_method === 'cash').reduce((s: number, x: any) => s + parseFloat(x.total_amount), 0)
   const creditRevenue = salesItems.filter((x: any) => x.payment_method === 'credit').reduce((s: number, x: any) => s + parseFloat(x.total_amount), 0)
 
-  const vendors: any[] = Array.isArray(vendorsData) ? vendorsData : (vendorsData?.items ?? [])
+  const milkCustomers: any[] = (milkCustomersData ?? []).filter(
+    (c: any) => c.category_name && c.category_name.toLowerCase().includes('milk')
+  )
   const animalItems: any[] = animals?.items ?? []
 
   const sessionBadge = (s: string) => {
@@ -310,7 +312,7 @@ export default function MilkPage() {
                 ]}
                 rows={salesItems.map((s: any) => ({
                   sale_date:       s.sale_date,
-                  buyer:           s.vendor_name || s.buyer_name || 'Walk-in',
+                  buyer:           s.customer_name || s.vendor_name || s.buyer_name || 'Walk-in',
                   quantity_liters: parseFloat(s.quantity_liters).toFixed(1),
                   price_per_liter: parseFloat(s.price_per_liter).toFixed(0),
                   total_amount:    parseFloat(s.total_amount).toFixed(2),
@@ -393,12 +395,12 @@ export default function MilkPage() {
               </select>
             </div>
             <div>
-              <label className="label text-xs">Buyer / Vendor</label>
-              <select className="input !w-44" value={saleFilter.vendor_id}
-                onChange={e => { setSaleFilter(f => ({ ...f, vendor_id: e.target.value })); setSalesPage(1) }}>
-                <option value="">All Buyers</option>
-                {vendors.map((v: any) => (
-                  <option key={v.id} value={v.id}>{v.name}</option>
+              <label className="label text-xs">Customer</label>
+              <select className="input !w-44" value={saleFilter.customer_id}
+                onChange={e => { setSaleFilter(f => ({ ...f, customer_id: e.target.value })); setSalesPage(1) }}>
+                <option value="">All Customers</option>
+                {milkCustomers.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
             </div>
@@ -531,7 +533,7 @@ export default function MilkPage() {
                   <tr key={s.id} className="table-row">
                     <td className="table-cell">{s.sale_date}</td>
                     <td className="table-cell">
-                      <div className="font-medium">{s.vendor_name || s.buyer_name || <span className="text-gray-400 italic text-xs">Walk-in</span>}</div>
+                      <div className="font-medium">{s.customer_name || s.vendor_name || s.buyer_name || <span className="text-gray-400 italic text-xs">Walk-in</span>}</div>
                     </td>
                     <td className="table-cell font-semibold">{parseFloat(s.quantity_liters).toFixed(1)}</td>
                     <td className="table-cell">PKR {parseFloat(s.price_per_liter).toFixed(0)}</td>
@@ -639,15 +641,15 @@ export default function MilkPage() {
             </div>
             <form onSubmit={submitSale} className="p-5 space-y-4">
               <div>
-                <label className="label">Buyer / Customer</label>
-                <select className="input" value={saleForm.vendor_id}
-                  onChange={e => setSaleForm({ ...saleForm, vendor_id: e.target.value, buyer_name: '' })}>
-                  <option value="">— Select buyer (or enter name below) —</option>
-                  {vendors.map((v: any) => (
-                    <option key={v.id} value={v.id}>{v.name}{v.vendor_code ? ` (${v.vendor_code})` : ''}</option>
+                <label className="label">Customer (Milk Buyer)</label>
+                <select className="input" value={saleForm.customer_id}
+                  onChange={e => setSaleForm({ ...saleForm, customer_id: e.target.value, buyer_name: '' })}>
+                  <option value="">— Select customer (or enter name below) —</option>
+                  {milkCustomers.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}{c.phone ? ` — ${c.phone}` : ''}</option>
                   ))}
                 </select>
-                {!saleForm.vendor_id && (
+                {!saleForm.customer_id && (
                   <input className="input mt-2" placeholder="Or type buyer name manually..."
                     value={saleForm.buyer_name}
                     onChange={e => setSaleForm({ ...saleForm, buyer_name: e.target.value })} />

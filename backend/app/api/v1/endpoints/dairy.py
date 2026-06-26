@@ -281,6 +281,7 @@ def list_sales(
     date_to: Optional[date] = None,
     payment_method: Optional[str] = None,
     vendor_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -293,6 +294,8 @@ def list_sales(
         query = query.filter(MilkSale.payment_method == payment_method)
     if vendor_id:
         query = query.filter(MilkSale.vendor_id == vendor_id)
+    if customer_id:
+        query = query.filter(MilkSale.customer_id == customer_id)
     total = query.count()
     items = (
         query.options(joinedload(MilkSale.vendor), joinedload(MilkSale.customer))
