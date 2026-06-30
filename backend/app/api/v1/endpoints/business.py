@@ -9,11 +9,14 @@ from app.models.models import (
     Investor, InvestorCapital, PallaiCustomer, PallaiPackage,
     PallaiSubscription, Invoice, InvoiceLineItem, Payment, User, UserRole, InvoiceStatus
 )
+from decimal import Decimal
 from app.schemas.schemas import (
     InvestorCreate, InvestorOut, InvestorCapitalCreate,
-    PallaiCustomerCreate, PallaiCustomerOut, PallaiPackageCreate, PallaiPackageOut,
+    PallaiCustomerCreate, PallaiCustomerOut, PallaiCustomerUpdate,
+    PallaiPackageCreate, PallaiPackageOut, PallaiPackageUpdate,
     InvoiceCreate, InvoiceOut, PaymentCreate, PaymentOut
 )
+from app.models.models import Invoice as InvoiceModel
 
 router = APIRouter(tags=["Business"])
 
@@ -93,9 +96,66 @@ pkg_router = APIRouter(prefix="/pallai-packages")
 
 
 @pallai_router.get("")
-def list_pallai(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items = db.query(PallaiCustomer).filter(PallaiCustomer.organization_id == get_org(current_user), PallaiCustomer.is_active == True).all()
+def list_pallai(
+    is_active: Optional[bool] = Query(None),
+    search: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from sqlalchemy import or_
+    q = db.query(PallaiCustomer).filter(PallaiCustomer.organization_id == get_org(current_user))
+    if is_active is not None:
+        q = q.filter(PallaiCustomer.is_active == is_active)
+    if search:
+        term = f"%{search}%"
+        q = q.filter(or_(
+            PallaiCustomer.full_name.ilike(term),
+            PallaiCustomer.phone.ilike(term),
+            PallaiCustomer.cnic.ilike(term),
+        ))
+    items = q.order_by(PallaiCustomer.full_name).all()
     return {"success": True, "data": [PallaiCustomerOut.from_orm(c) for c in items]}
+
+
+@pallai_router.post("", status_code=201)
+def create_pallai_customer(payload: PallaiCustomerCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    c = PallaiCustomer(id=str(uuid_lib.uuid4()), organization_id=get_org(current_user), **payload.dict())
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return {"success": True, "data": PallaiCustomerOut.from_orm(c)}
+
+
+@pallai_router.get("/ledger-summary")
+def customers_ledger_summary_business(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Aggregated ledger totals for all Pallai customers (used by ledger page)."""
+    org_id = get_org(current_user)
+    customers = db.query(PallaiCustomer).filter(PallaiCustomer.organization_id == org_id).order_by(PallaiCustomer.full_name).all()
+    result = []
+    for c in customers:
+        invoices = db.query(InvoiceModel).filter(InvoiceModel.organization_id == org_id, InvoiceModel.customer_id == c.id).all()
+        total_billed = sum(float(inv.total_amount or 0) for inv in invoices)
+        total_paid = sum(float(inv.paid_amount or 0) for inv in invoices)
+        outstanding = round(total_billed - total_paid, 2)
+        last_date = max((inv.issue_date for inv in invoices), default=None)
+        result.append({
+            "id": c.id,
+            "full_name": c.full_name,
+            "phone": c.phone or "",
+            "email": c.email or "",
+            "address": c.address or "",
+            "cnic": c.cnic or "",
+            "is_active": c.is_active,
+            "total_billed": total_billed,
+            "total_paid": total_paid,
+            "outstanding": outstanding,
+            "invoice_count": len(invoices),
+            "last_invoice_date": str(last_date) if last_date else None,
+        })
+    return {"data": result}
 
 
 @pallai_router.get("/{cust_id}")
@@ -106,36 +166,57 @@ def get_pallai_customer(cust_id: str, db: Session = Depends(get_db), current_use
     return {"success": True, "data": PallaiCustomerOut.from_orm(c)}
 
 
-@pallai_router.post("")
-def create_pallai_customer(payload: PallaiCustomerCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    c = PallaiCustomer(organization_id=get_org(current_user), **payload.dict())
-    db.add(c)
+@pallai_router.put("/{cust_id}")
+def update_pallai(cust_id: str, payload: PallaiCustomerUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    c = db.query(PallaiCustomer).filter(PallaiCustomer.id == cust_id, PallaiCustomer.organization_id == get_org(current_user)).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Not found")
+    for k, v in payload.dict(exclude_unset=True).items():
+        if hasattr(c, k):
+            setattr(c, k, v)
     db.commit()
     db.refresh(c)
     return {"success": True, "data": PallaiCustomerOut.from_orm(c)}
 
 
-@pallai_router.put("/{cust_id}")
-def update_pallai(cust_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    c = db.query(PallaiCustomer).filter(PallaiCustomer.id == cust_id, PallaiCustomer.organization_id == get_org(current_user)).first()
-    if not c:
-        raise HTTPException(status_code=404, detail="Not found")
-    for k, v in payload.items():
-        if hasattr(c, k): setattr(c, k, v)
-    db.commit()
-    return {"success": True, "data": PallaiCustomerOut.from_orm(c)}
-
-
 @pkg_router.get("")
-def list_packages(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    items = db.query(PallaiPackage).filter(PallaiPackage.organization_id == get_org(current_user), PallaiPackage.is_active == True).all()
+def list_packages(
+    is_active: Optional[bool] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    q = db.query(PallaiPackage).filter(PallaiPackage.organization_id == get_org(current_user))
+    if is_active is not None:
+        q = q.filter(PallaiPackage.is_active == is_active)
+    items = q.order_by(PallaiPackage.name).all()
     return {"success": True, "data": [PallaiPackageOut.from_orm(p) for p in items]}
 
 
-@pkg_router.post("")
+@pkg_router.post("", status_code=201)
 def create_package(payload: PallaiPackageCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    p = PallaiPackage(organization_id=get_org(current_user), **payload.dict())
+    p = PallaiPackage(id=str(uuid_lib.uuid4()), organization_id=get_org(current_user), **payload.dict())
     db.add(p)
+    db.commit()
+    db.refresh(p)
+    return {"success": True, "data": PallaiPackageOut.from_orm(p)}
+
+
+@pkg_router.get("/{pkg_id}")
+def get_package(pkg_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    p = db.query(PallaiPackage).filter(PallaiPackage.id == pkg_id, PallaiPackage.organization_id == get_org(current_user)).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Package not found")
+    return {"success": True, "data": PallaiPackageOut.from_orm(p)}
+
+
+@pkg_router.put("/{pkg_id}")
+def update_package_route(pkg_id: str, payload: PallaiPackageUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    p = db.query(PallaiPackage).filter(PallaiPackage.id == pkg_id, PallaiPackage.organization_id == get_org(current_user)).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Package not found")
+    for k, v in payload.dict(exclude_unset=True).items():
+        if hasattr(p, k):
+            setattr(p, k, v)
     db.commit()
     db.refresh(p)
     return {"success": True, "data": PallaiPackageOut.from_orm(p)}

@@ -1,13 +1,13 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { healthAPI, animalsAPI } from '@/lib/api'
+import { healthAPI, animalsAPI, inventoryAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
 
 const today = new Date().toISOString().split('T')[0]
-const emptyForm = { animal_id: '', diagnosis: '', treatment_description: '', medicine_used: '', treatment_date: today, follow_up_date: '', treated_by: '', cost: '' }
+const emptyForm = { animal_id: '', diagnosis: '', treatment_description: '', medicine_used: '', treatment_date: today, follow_up_date: '', treated_by: '', cost: '', medicine_product_id: '', medicine_quantity: '' }
 
 export default function TreatmentsPage() {
   const qc = useQueryClient()
@@ -54,9 +54,15 @@ export default function TreatmentsPage() {
     queryFn: () => animalsAPI.list({ per_page: 100 }).then(r => r.data.data),
   })
 
+  const { data: productsData } = useQuery({
+    queryKey: ['products-all'],
+    queryFn: () => inventoryAPI.listProducts({ per_page: 200 }).then(r => r.data.data),
+  })
+  const medicineProducts: any[] = productsData?.items ?? []
+
   const createMutation = useMutation({
     mutationFn: (d: any) => healthAPI.createTreatment(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['treatments'] }); toast.success('Treatment recorded!'); setShowAdd(false); setForm(emptyForm) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['treatments'] }); qc.invalidateQueries({ queryKey: ['products'] }); toast.success('Treatment recorded!'); setShowAdd(false); setForm(emptyForm) },
     onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
   })
 
@@ -72,7 +78,7 @@ export default function TreatmentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => healthAPI.deleteTreatment(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['treatments'] }); toast.success('Deleted') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['treatments'] }); qc.invalidateQueries({ queryKey: ['products'] }); toast.success('Deleted') },
   })
 
   const getAnimalCode = (id: string) => animals?.items?.find((a: any) => a.id === id)?.animal_code || id.slice(0, 8)
@@ -413,6 +419,8 @@ export default function TreatmentsPage() {
               const d: any = { ...form }
               if (!d.follow_up_date) delete d.follow_up_date
               if (d.cost) d.cost = parseFloat(d.cost)
+              if (d.medicine_product_id && d.medicine_quantity) d.medicine_quantity = parseFloat(d.medicine_quantity)
+              else { delete d.medicine_product_id; delete d.medicine_quantity }
               createMutation.mutate(d)
             }} className="p-5 space-y-4">
               <div>
@@ -453,6 +461,24 @@ export default function TreatmentsPage() {
               <div>
                 <label className="label">Treated By</label>
                 <input className="input" value={form.treated_by} onChange={e => setForm({ ...form, treated_by: e.target.value })} placeholder="Vet/doctor name" />
+              </div>
+              <div className="border-t pt-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Medicine from Inventory (optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Medicine Product</label>
+                    <select className="input" value={form.medicine_product_id} onChange={e => setForm({ ...form, medicine_product_id: e.target.value, medicine_quantity: '' })}>
+                      <option value="">None / not tracked</option>
+                      {medicineProducts.map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.name} ({parseFloat(p.current_stock).toFixed(1)} {p.unit})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Quantity Used</label>
+                    <input type="number" step="0.001" min="0.001" className="input" value={form.medicine_quantity} onChange={e => setForm({ ...form, medicine_quantity: e.target.value })} placeholder="e.g. 5" disabled={!form.medicine_product_id} />
+                  </div>
+                </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowAdd(false)} className="btn-secondary">Cancel</button>

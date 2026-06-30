@@ -10,11 +10,12 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, require_roles
 from app.models.models import (
     PallaiCustomer, PallaiPackage, PallaiSubscription,
-    Invoice, InvoiceLineItem, Payment, User, InvoiceStatus, Animal
+    Invoice, InvoiceLineItem, Payment, User, InvoiceStatus, Animal,
+    ChartOfAccount, JournalEntry, JournalEntryLine, JournalEntryStatus,
 )
 from app.schemas.schemas import (
     PallaiSubscriptionCreate, PallaiSubscriptionOut,
-    PallaiCustomerOut, PallaiPackageOut, InvoiceOut, PallaiLedgerEntry
+    PallaiPackageOut, InvoiceOut, PallaiLedgerEntry
 )
 
 # ─────────────────────────────────────────────
@@ -51,6 +52,65 @@ def _enrich_subscription(sub: PallaiSubscription) -> PallaiSubscriptionOut:
 # ─────────────────────────────────────────────
 # SUBSCRIPTION ENDPOINTS
 # ─────────────────────────────────────────────
+
+def _next_je_number(org_id: str, db: Session) -> str:
+    count = db.query(JournalEntry).filter_by(organization_id=org_id).count()
+    return f"JE-{count + 1:05d}"
+
+
+def _post_subscription_je(db: Session, sub, customer, package, current_user):
+    """Create and post a journal entry for a new Pallai subscription:
+       DR Pallai Receivable (1110) / CR Pallai Service Revenue (4200).
+       Silently skips if either account is missing — admin must set up CoA first."""
+    org_id = current_user.organization_id
+    ar_acct = db.query(ChartOfAccount).filter_by(
+        organization_id=org_id, account_code="1110", is_active=True
+    ).first()
+    rev_acct = db.query(ChartOfAccount).filter_by(
+        organization_id=org_id, account_code="4200", is_active=True
+    ).first()
+    if not ar_acct or not rev_acct:
+        return  # CoA not set up yet; skip silently
+
+    amount = Decimal(str(sub.monthly_fee or 0))
+    if amount <= 0:
+        return
+
+    entry_date = sub.start_date if isinstance(sub.start_date, date) else date.today()
+    description = (
+        f"Pallai subscription — {customer.full_name} / {package.name}"
+    )
+
+    entry = JournalEntry(
+        organization_id=org_id,
+        entry_number=_next_je_number(org_id, db),
+        entry_date=entry_date,
+        description=description,
+        reference=f"SUB-{sub.id[:8].upper()}",
+        status=JournalEntryStatus.POSTED,
+        total_debit=amount,
+        total_credit=amount,
+        created_by=current_user.id,
+    )
+    db.add(entry)
+    db.flush()
+
+    db.add(JournalEntryLine(
+        entry_id=entry.id,
+        account_id=ar_acct.id,
+        description=f"Receivable — {customer.full_name}",
+        debit_amount=amount,
+        credit_amount=Decimal("0"),
+    ))
+    db.add(JournalEntryLine(
+        entry_id=entry.id,
+        account_id=rev_acct.id,
+        description=f"Revenue — {package.name}",
+        debit_amount=Decimal("0"),
+        credit_amount=amount,
+    ))
+    db.commit()
+
 
 @sub_router.get("")
 def list_subscriptions(
@@ -119,6 +179,10 @@ def create_subscription(
     db.add(sub)
     db.commit()
     db.refresh(sub)
+
+    # Auto-post journal entry: DR Pallai Receivable / CR Pallai Service Revenue
+    _post_subscription_je(db, sub, customer, package, current_user)
+
     return {"success": True, "data": _enrich_subscription(sub).dict()}
 
 
@@ -176,6 +240,7 @@ def update_subscription(
 
 # ─────────────────────────────────────────────
 # CUSTOMER-SPECIFIC ENDPOINTS
+# (CRUD is handled by business.py pallai_router)
 # ─────────────────────────────────────────────
 
 @customer_sub_router.get("/{cust_id}/subscriptions")
@@ -199,51 +264,6 @@ def customer_subscriptions(
         PallaiSubscription.organization_id == current_user.organization_id,
     ).order_by(PallaiSubscription.start_date.desc()).all()
     return {"success": True, "data": [_enrich_subscription(s).dict() for s in subs]}
-
-
-@customer_sub_router.get("/ledger-summary")
-def customers_ledger_summary(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(
-        require_roles(["super_admin", "owner", "farm_manager", "accountant"])
-    ),
-):
-    """Aggregated ledger totals for every active Pallai customer."""
-    customers = (
-        db.query(PallaiCustomer)
-        .filter(
-            PallaiCustomer.organization_id == current_user.organization_id,
-            PallaiCustomer.is_active == True,
-        )
-        .order_by(PallaiCustomer.full_name)
-        .all()
-    )
-    result = []
-    for c in customers:
-        invoices = (
-            db.query(Invoice)
-            .filter(
-                Invoice.organization_id == current_user.organization_id,
-                Invoice.customer_id == c.id,
-            )
-            .all()
-        )
-        total_billed = sum(float(inv.total_amount or 0) for inv in invoices)
-        total_paid = sum(float(inv.paid_amount or 0) for inv in invoices)
-        outstanding = round(total_billed - total_paid, 2)
-        last_date = max((inv.issue_date for inv in invoices), default=None)
-        result.append({
-            "id": c.id,
-            "full_name": c.full_name,
-            "phone": c.phone or "",
-            "email": c.email or "",
-            "total_billed": total_billed,
-            "total_paid": total_paid,
-            "outstanding": outstanding,
-            "invoice_count": len(invoices),
-            "last_invoice_date": str(last_date) if last_date else None,
-        })
-    return {"data": result}
 
 
 @customer_sub_router.get("/{cust_id}/ledger")
@@ -663,6 +683,10 @@ def reports_revenue(
         })
 
     return {"success": True, "data": result}
+
+
+# Package CRUD is handled by business.py pkg_router.
+# package_router here is kept as a placeholder for future pallai-specific package routes.
 
 
 # ─────────────────────────────────────────────

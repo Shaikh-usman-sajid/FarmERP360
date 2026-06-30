@@ -176,7 +176,7 @@ export const investorsAPI = {
 
 export const pallaiAPI = {
   // Customers
-  listCustomers: () => api.get('/pallai-customers'),
+  listCustomers: (params?: object) => api.get('/pallai-customers', { params }),
   getCustomer: (id: string) => api.get(`/pallai-customers/${id}`),
   createCustomer: (data: object) => api.post('/pallai-customers', data),
   updateCustomer: (id: string, data: object) => api.put(`/pallai-customers/${id}`, data),
@@ -184,8 +184,10 @@ export const pallaiAPI = {
   getCustomerLedger: (id: string, params?: object) => api.get(`/pallai-customers/${id}/ledger`, { params }),
   getLedgerSummary: () => api.get('/pallai-customers/ledger-summary'),
   // Packages
-  listPackages: () => api.get('/pallai-packages'),
+  listPackages: (params?: object) => api.get('/pallai-packages', { params }),
+  getPackage: (id: string) => api.get(`/pallai-packages/${id}`),
   createPackage: (data: object) => api.post('/pallai-packages', data),
+  updatePackage: (id: string, data: object) => api.put(`/pallai-packages/${id}`, data),
   // Subscriptions
   listSubscriptions: (params?: object) => api.get('/pallai-subscriptions', { params }),
   getSubscription: (id: string) => api.get(`/pallai-subscriptions/${id}`),
@@ -193,6 +195,7 @@ export const pallaiAPI = {
   updateSubscription: (id: string, data: object) => api.put(`/pallai-subscriptions/${id}`, data),
   // Billing
   generateBilling: (data: object) => api.post('/pallai/billing/generate', data),
+  sendBillingNotifications: (data: object) => api.post('/admin/pallai/billing/send', data),
   // Portal (pallai_customer role)
   portalMe: () => api.get('/pallai/portal/me'),
   portalSubscriptions: () => api.get('/pallai/portal/subscriptions'),
@@ -320,6 +323,7 @@ export const adminAPI = {
   previewAlerts: () => api.get('/admin/notifications/alerts/preview'),
   sendAlerts: (data: object) => api.post('/admin/notifications/alerts/send', data),
   testWhatsapp: (data: { to: string; message?: string }) => api.post('/admin/notifications/whatsapp/test', data),
+  testEmail: (data: { to: string }) => api.post('/admin/notifications/email/test', data),
   getPaymentOptions: (invoiceId: string) => api.get(`/admin/payments/invoice/${invoiceId}`),
   getAnimalQrCode: (animalId: string, baseUrl?: string) =>
     api.get(`/animals/${animalId}/qrcode`, { params: { base_url: baseUrl }, responseType: 'blob' }),

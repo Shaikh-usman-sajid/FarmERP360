@@ -352,6 +352,8 @@ class Vaccination(Base):
     administered_by = Column(String(255))
     dose = Column(String(100))
     notes = Column(Text)
+    medicine_product_id = Column(UUID(as_uuid=False), ForeignKey("products.id"), nullable=True)
+    medicine_quantity = Column(Numeric(10, 3), nullable=True)
     created_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -376,6 +378,8 @@ class Treatment(Base):
     treated_by = Column(String(255))
     cost = Column(Numeric(10, 2))
     is_resolved = Column(Boolean, default=False)
+    medicine_product_id = Column(UUID(as_uuid=False), ForeignKey("products.id"), nullable=True)
+    medicine_quantity = Column(Numeric(10, 3), nullable=True)
     created_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -541,6 +545,8 @@ class CropCycle(Base):
     expected_harvest_date = Column(Date)
     actual_harvest_date = Column(Date)
     status = Column(Enum(CropStatus), default=CropStatus.PLANNED)
+    seed_product_id = Column(UUID(as_uuid=False), ForeignKey("products.id"), nullable=True)
+    seed_quantity = Column(Numeric(12, 3), nullable=True)
     seed_cost = Column(Numeric(12, 2))
     fertilizer_cost = Column(Numeric(12, 2))
     labor_cost = Column(Numeric(12, 2))
@@ -1026,12 +1032,14 @@ class FeedType(Base):
     cost_per_unit = Column(Numeric(10, 2))
     suitable_for = Column(String(255))
     description = Column(Text)
+    inventory_product_id = Column(UUID(as_uuid=False), ForeignKey("products.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     stock_transactions = relationship("FeedStockTransaction", back_populates="feed_type")
     consumption_records = relationship("FeedConsumption", back_populates="feed_type")
+    inventory_product = relationship("Product", foreign_keys=[inventory_product_id])
 
 
 class FeedStockTransaction(Base):

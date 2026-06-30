@@ -59,6 +59,8 @@ export default function AdminSettingsPage() {
   const [testPhone, setTestPhone] = useState('')
   const [testMsg, setTestMsg] = useState('')
   const [alertMsg, setAlertMsg] = useState('')
+  const [testEmailAddr, setTestEmailAddr] = useState('')
+  const [testEmailMsg, setTestEmailMsg] = useState('')
   const [auditFilter, setAuditFilter] = useState({ module: '', action: '', page: 1 })
 
   const { data: settingsData, isLoading } = useQuery({
@@ -97,6 +99,12 @@ export default function AdminSettingsPage() {
     mutationFn: () => adminAPI.testWhatsapp({ to: testPhone, message: testMsg || undefined }),
     onSuccess: () => setTestMsg('✅ Test message sent successfully!'),
     onError: (e: any) => setTestMsg('❌ ' + (e.response?.data?.detail || 'Failed')),
+  })
+
+  const emailMutation = useMutation({
+    mutationFn: () => adminAPI.testEmail({ to: testEmailAddr }),
+    onSuccess: () => setTestEmailMsg('✅ Test email sent successfully!'),
+    onError: (e: any) => setTestEmailMsg('❌ ' + (e.response?.data?.detail || 'Failed')),
   })
 
   const alertsMutation = useMutation({
@@ -304,6 +312,93 @@ export default function AdminSettingsPage() {
                       <Field label="Merchant ID" name="jazzcash_merchant_id" value={form.jazzcash_merchant_id || ''} onChange={onChange} sensitive />
                       <Field label="Password" name="jazzcash_password" value={form.jazzcash_password || ''} onChange={onChange} sensitive />
                       <Field label="Integrity Salt" name="jazzcash_integrity_salt" value={form.jazzcash_integrity_salt || ''} onChange={onChange} sensitive />
+                    </div>
+                  )}
+                </div>
+
+                {/* SMTP — Simple Auth */}
+                <div style={{ borderTop: `1px solid ${BRAND.cream2}`, paddingTop: '1.5rem' }}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: '#3b82f622' }}>📧</div>
+                    <div>
+                      <h3 className="font-semibold" style={{ color: BRAND.dark }}>Email (SMTP — Simple Auth)</h3>
+                      <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>Use for Gmail App Passwords, Hostinger, cPanel, Sendgrid SMTP</p>
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl mb-4" style={{ backgroundColor: BRAND.cream }}>
+                    <Toggle label="Enable SMTP Email" name="smtp_enabled" value={form.smtp_enabled || 'false'} onChange={onChange}
+                      description="Send invoices and notifications via SMTP email" />
+                  </div>
+                  {form.smtp_enabled === 'true' && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <Field label="SMTP Host" name="smtp_host" value={form.smtp_host || ''} onChange={onChange} placeholder="smtp.gmail.com" />
+                        <Field label="Port" name="smtp_port" value={form.smtp_port || '587'} onChange={onChange} placeholder="587" type="number" />
+                        <Field label="Username / Email" name="smtp_username" value={form.smtp_username || ''} onChange={onChange} placeholder="you@gmail.com" />
+                        <Field label="Password / App Password" name="smtp_password" value={form.smtp_password || ''} onChange={onChange} sensitive placeholder="App password or SMTP password" />
+                        <Field label="From Email" name="smtp_from_email" value={form.smtp_from_email || ''} onChange={onChange} placeholder="noreply@yourfarm.com" />
+                        <Field label="From Name" name="smtp_from_name" value={form.smtp_from_name || ''} onChange={onChange} placeholder="FarmERP360" />
+                      </div>
+                      <div className="p-3 rounded-xl" style={{ backgroundColor: BRAND.cream }}>
+                        <Toggle label="Use STARTTLS (recommended for port 587)" name="smtp_use_tls" value={form.smtp_use_tls || 'true'} onChange={onChange}
+                          description="Disable only if using SSL on port 465" />
+                      </div>
+                      <div className="flex gap-2 mt-2 items-end">
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium mb-1" style={{ color: '#6b7280' }}>Send Test Email To</label>
+                          <div className="flex gap-2">
+                            <input value={testEmailAddr} onChange={e => setTestEmailAddr(e.target.value)}
+                              placeholder="test@example.com" type="email" className="flex-1 px-3 py-2 border rounded-lg text-sm" style={{ borderColor: '#d1d5db' }} />
+                            <button onClick={() => { setTestEmailMsg(''); emailMutation.mutate() }}
+                              disabled={!testEmailAddr || emailMutation.isPending}
+                              className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                              style={{ backgroundColor: BRAND.green }}>
+                              {emailMutation.isPending ? '…' : 'Send Test'}
+                            </button>
+                          </div>
+                          {testEmailMsg && <div className="text-xs mt-1" style={{ color: testEmailMsg.startsWith('✅') ? '#16a34a' : '#dc2626' }}>{testEmailMsg}</div>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* SMTP — OAuth2 (Microsoft 365) */}
+                <div style={{ borderTop: `1px solid ${BRAND.cream2}`, paddingTop: '1.5rem' }}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg" style={{ backgroundColor: '#0078d422' }}>🔐</div>
+                    <div>
+                      <h3 className="font-semibold" style={{ color: BRAND.dark }}>Email (OAuth2 — Microsoft 365 / Azure)</h3>
+                      <p className="text-xs mt-0.5" style={{ color: '#6b7280' }}>For Microsoft 365 organizations using Modern Auth. Requires Azure App Registration.</p>
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl mb-4" style={{ backgroundColor: BRAND.cream }}>
+                    <Toggle label="Enable OAuth2 Email (overrides SMTP)" name="smtp_oauth_enabled" value={form.smtp_oauth_enabled || 'false'} onChange={onChange}
+                      description="When enabled, this takes priority over simple SMTP" />
+                  </div>
+                  {form.smtp_oauth_enabled === 'true' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Field label="Client ID (Application ID)" name="smtp_oauth_client_id" value={form.smtp_oauth_client_id || ''} onChange={onChange} sensitive />
+                      <Field label="Client Secret" name="smtp_oauth_client_secret" value={form.smtp_oauth_client_secret || ''} onChange={onChange} sensitive />
+                      <Field label="Tenant ID (Directory ID)" name="smtp_oauth_tenant_id" value={form.smtp_oauth_tenant_id || ''} onChange={onChange} placeholder="your-tenant-id or 'common'" />
+                      <Field label="Refresh Token" name="smtp_oauth_refresh_token" value={form.smtp_oauth_refresh_token || ''} onChange={onChange} sensitive />
+                      <Field label="Sender Email (must match Azure App)" name="smtp_oauth_from_email" value={form.smtp_oauth_from_email || ''} onChange={onChange} placeholder="noreply@yourdomain.com" />
+                      <div className="flex items-end">
+                        <div className="w-full">
+                          <label className="block text-xs font-medium mb-1" style={{ color: '#6b7280' }}>Test Email</label>
+                          <div className="flex gap-2">
+                            <input value={testEmailAddr} onChange={e => setTestEmailAddr(e.target.value)}
+                              placeholder="test@example.com" type="email" className="flex-1 px-3 py-2 border rounded-lg text-sm" style={{ borderColor: '#d1d5db' }} />
+                            <button onClick={() => { setTestEmailMsg(''); emailMutation.mutate() }}
+                              disabled={!testEmailAddr || emailMutation.isPending}
+                              className="px-4 py-2 rounded-lg text-sm font-medium text-white"
+                              style={{ backgroundColor: BRAND.green }}>
+                              {emailMutation.isPending ? '…' : 'Test'}
+                            </button>
+                          </div>
+                          {testEmailMsg && <div className="text-xs mt-1" style={{ color: testEmailMsg.startsWith('✅') ? '#16a34a' : '#dc2626' }}>{testEmailMsg}</div>}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

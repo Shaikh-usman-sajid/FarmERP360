@@ -118,6 +118,7 @@ const navGroups: NavGroup[] = [
       { label: 'Products', href: '/admin/products', icon: '📦', roles: ['super_admin', 'owner'] },
       { label: 'Customer Categories', href: '/admin/customer-categories', icon: '🗂️', roles: ['super_admin', 'owner'] },
       { label: 'Customers', href: '/admin/customers', icon: '👥', roles: ['super_admin', 'owner'] },
+      { label: 'Pallai Packages', href: '/admin/packages', icon: '📦', roles: ['super_admin', 'owner'] },
       { label: 'Admin Settings', href: '/admin/settings', icon: '⚙️', roles: ['super_admin', 'owner'] },
     ],
   },

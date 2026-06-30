@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { feedAPI, animalsAPI } from '@/lib/api'
+import { feedAPI, animalsAPI, inventoryAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -39,6 +39,8 @@ export default function FeedPage() {
   // ─── Queries ───────────────────────────────────────────────
   const summary = useQuery({ queryKey: ['feed-summary'], queryFn: () => feedAPI.summary().then(r => r.data.data) })
   const feedTypes = useQuery({ queryKey: ['feed-types'], queryFn: () => feedAPI.listTypes().then(r => r.data.data) })
+  const productsQuery = useQuery({ queryKey: ['products-all'], queryFn: () => inventoryAPI.listProducts({ per_page: 200 }).then(r => r.data.data) })
+  const allProducts: any[] = productsQuery.data?.items ?? []
   const stockHistory = useQuery({
     queryKey: ['feed-stock', stFeedTypeId, stTxType, stDateFrom, stDateTo],
     queryFn: () => feedAPI.listStock({ feed_type_id: stFeedTypeId || undefined, transaction_type: stTxType || undefined, date_from: stDateFrom || undefined, date_to: stDateTo || undefined }).then(r => r.data.data),
@@ -52,7 +54,7 @@ export default function FeedPage() {
   const animals = useQuery({ queryKey: ['animals'], queryFn: () => animalsAPI.list({ status: 'active' }).then(r => r.data.data), enabled: tab === 'Record Consumption' })
 
   // ─── Feed Type form ────────────────────────────────────────
-  const [ftForm, setFtForm] = useState({ name: '', unit: 'kg', min_stock_level: '', cost_per_unit: '', suitable_for: '', description: '' })
+  const [ftForm, setFtForm] = useState({ name: '', unit: 'kg', min_stock_level: '', cost_per_unit: '', suitable_for: '', description: '', inventory_product_id: '' })
   const [editingFt, setEditingFt] = useState<any>(null)
   const [showFtForm, setShowFtForm] = useState(false)
 
@@ -63,7 +65,7 @@ export default function FeedPage() {
       qc.invalidateQueries({ queryKey: ['feed-summary'] })
       setShowFtForm(false)
       setEditingFt(null)
-      setFtForm({ name: '', unit: 'kg', min_stock_level: '', cost_per_unit: '', suitable_for: '', description: '' })
+      setFtForm({ name: '', unit: 'kg', min_stock_level: '', cost_per_unit: '', suitable_for: '', description: '', inventory_product_id: '' })
     },
   })
 
@@ -95,13 +97,15 @@ export default function FeedPage() {
       qc.invalidateQueries({ queryKey: ['feed-types'] })
       qc.invalidateQueries({ queryKey: ['feed-consumption'] })
       qc.invalidateQueries({ queryKey: ['feed-summary'] })
+      qc.invalidateQueries({ queryKey: ['products'] })
+      qc.invalidateQueries({ queryKey: ['products-all'] })
       setConForm({ feed_type_id: '', animal_id: '', species: '', quantity: '', consumption_date: today(), session: 'morning', notes: '' })
     },
   })
 
   const deleteConsumption = useMutation({
     mutationFn: (id: string) => feedAPI.deleteConsumption(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['feed-consumption'] }); qc.invalidateQueries({ queryKey: ['feed-types'] }) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['feed-consumption'] }); qc.invalidateQueries({ queryKey: ['feed-types'] }); qc.invalidateQueries({ queryKey: ['products'] }); qc.invalidateQueries({ queryKey: ['products-all'] }) },
   })
 
   const ftList: any[] = feedTypes.data || []
@@ -121,10 +125,12 @@ export default function FeedPage() {
   const hasStFilter = !!(stFeedTypeId || stTxType || stDateFrom || stDateTo)
   const hasConFilter = !!(conFeedTypeId || conSpecies || conSession || conDateFrom || conDateTo)
 
+  const effStock = (ft: any) => ft.effective_stock ?? ft.current_stock
+
   const feedTypeRows = filteredFtList.map((ft: any) => ({
     name: ft.name,
     unit: ft.unit,
-    current_stock: ft.current_stock,
+    current_stock: effStock(ft),
     min_stock_level: ft.min_stock_level,
     cost_per_unit: ft.cost_per_unit ?? '',
     suitable_for: ft.suitable_for ?? '',
@@ -251,13 +257,19 @@ export default function FeedPage() {
                   </div>
                   <div className="divide-y divide-gray-50">
                     {sv.feed_type_consumption.map((ft: any) => {
-                      const pct = ft.min_stock_level > 0 ? Math.min(100, (ft.current_stock / ft.min_stock_level) * 50) : 100
+                      const stock = ft.current_stock
+                      const pct = ft.min_stock_level > 0 ? Math.min(100, (stock / ft.min_stock_level) * 50) : 100
                       return (
                         <div key={ft.feed_type_id} className="px-5 py-3">
                           <div className="flex items-center justify-between mb-1">
-                            <span className={`text-sm font-medium ${ft.is_low ? 'text-red-700' : 'text-gray-800'}`}>{ft.name}</span>
+                            <div>
+                              <span className={`text-sm font-medium ${ft.is_low ? 'text-red-700' : 'text-gray-800'}`}>{ft.name}</span>
+                              {ft.inventory_product_id && (
+                                <span className="ml-1.5 text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">Inventory</span>
+                              )}
+                            </div>
                             <span className={`text-sm font-bold ${ft.is_low ? 'text-red-600' : 'text-gray-700'}`}>
-                              {ft.current_stock.toLocaleString('en-PK')} {ft.unit}
+                              {stock.toLocaleString('en-PK')} {ft.unit}
                               {ft.is_low && <span className="ml-2 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">LOW</span>}
                             </span>
                           </div>
@@ -327,7 +339,7 @@ export default function FeedPage() {
           </div>
 
           <div className="flex justify-end">
-            <button onClick={() => { setEditingFt(null); setFtForm({ name: '', unit: 'kg', min_stock_level: '', cost_per_unit: '', suitable_for: '', description: '' }); setShowFtForm(true) }}
+            <button onClick={() => { setEditingFt(null); setFtForm({ name: '', unit: 'kg', min_stock_level: '', cost_per_unit: '', suitable_for: '', description: '', inventory_product_id: '' }); setShowFtForm(true) }}
               className="btn-primary text-sm">+ Add Feed Type</button>
           </div>
 
@@ -362,10 +374,20 @@ export default function FeedPage() {
                   <label className="form-label">Description</label>
                   <input className="form-input" value={ftForm.description} onChange={e => setFtForm(p => ({ ...p, description: e.target.value }))} />
                 </div>
+                <div className="md:col-span-2">
+                  <label className="form-label">Link to Inventory Product (for auto stock deduction)</label>
+                  <select className="form-input" value={ftForm.inventory_product_id} onChange={e => setFtForm(p => ({ ...p, inventory_product_id: e.target.value }))}>
+                    <option value="">None — track feed stock separately</option>
+                    {allProducts.map((p: any) => (
+                      <option key={p.id} value={p.id}>{p.name} ({parseFloat(p.current_stock).toFixed(1)} {p.unit})</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">When linked, recording consumption will also deduct from the inventory product.</p>
+                </div>
               </div>
               <div className="flex gap-2 mt-4">
                 <button className="btn-primary text-sm" disabled={!ftForm.name || saveFeedType.isPending}
-                  onClick={() => saveFeedType.mutate({ ...ftForm, min_stock_level: ftForm.min_stock_level || 0, cost_per_unit: ftForm.cost_per_unit || undefined })}>
+                  onClick={() => saveFeedType.mutate({ ...ftForm, min_stock_level: ftForm.min_stock_level || 0, cost_per_unit: ftForm.cost_per_unit || undefined, inventory_product_id: ftForm.inventory_product_id || null })}>
                   {saveFeedType.isPending ? 'Saving…' : 'Save'}
                 </button>
                 <button className="btn-secondary text-sm" onClick={() => setShowFtForm(false)}>Cancel</button>
@@ -387,10 +409,15 @@ export default function FeedPage() {
                 <tbody>
                   {filteredFtList.map((ft: any) => (
                     <tr key={ft.id} className="border-t border-gray-50 hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium text-gray-800">{ft.name}</td>
+                      <td className="px-4 py-3 font-medium text-gray-800">
+                        {ft.name}
+                        {ft.inventory_product_id && (
+                          <span className="ml-1.5 text-xs bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded" title="Stock from inventory">Inv</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-gray-600">{ft.unit}</td>
                       <td className="px-4 py-3">
-                        <span className={`font-semibold ${ft.is_low_stock ? 'text-red-600' : 'text-gray-800'}`}>{ft.current_stock.toLocaleString('en-PK')}</span>
+                        <span className={`font-semibold ${ft.is_low_stock ? 'text-red-600' : 'text-gray-800'}`}>{effStock(ft).toLocaleString('en-PK')}</span>
                         {ft.is_low_stock && <span className="ml-1 text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded">LOW</span>}
                       </td>
                       <td className="px-4 py-3 text-gray-600">{ft.min_stock_level}</td>
@@ -404,7 +431,7 @@ export default function FeedPage() {
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
                           <button className="text-xs text-blue-600 hover:underline"
-                            onClick={() => { setEditingFt(ft); setFtForm({ name: ft.name, unit: ft.unit, min_stock_level: String(ft.min_stock_level), cost_per_unit: ft.cost_per_unit ? String(ft.cost_per_unit) : '', suitable_for: ft.suitable_for || '', description: ft.description || '' }); setShowFtForm(true) }}>
+                            onClick={() => { setEditingFt(ft); setFtForm({ name: ft.name, unit: ft.unit, min_stock_level: String(ft.min_stock_level), cost_per_unit: ft.cost_per_unit ? String(ft.cost_per_unit) : '', suitable_for: ft.suitable_for || '', description: ft.description || '', inventory_product_id: ft.inventory_product_id || '' }); setShowFtForm(true) }}>
                             Edit
                           </button>
                           <button className="text-xs text-red-500 hover:underline"
@@ -449,7 +476,7 @@ export default function FeedPage() {
                 <select className="form-input" value={conForm.feed_type_id} onChange={e => setConForm(p => ({ ...p, feed_type_id: e.target.value }))}>
                   <option value="">Select feed type</option>
                   {ftList.map((ft: any) => (
-                    <option key={ft.id} value={ft.id}>{ft.name} (Stock: {ft.current_stock} {ft.unit})</option>
+                    <option key={ft.id} value={ft.id}>{ft.name} (Stock: {effStock(ft).toLocaleString('en-PK')} {ft.unit})</option>
                   ))}
                 </select>
               </div>
@@ -512,48 +539,9 @@ export default function FeedPage() {
             {addConsumption.isSuccess && <p className="text-xs text-green-600 mt-2">Consumption recorded and stock updated.</p>}
           </div>
 
-          {/* Add stock section */}
-          <div className="card p-5 max-w-2xl">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">Add / Adjust Feed Stock</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="form-label">Feed Type *</label>
-                <select className="form-input" value={stForm.feed_type_id} onChange={e => setStForm(p => ({ ...p, feed_type_id: e.target.value }))}>
-                  <option value="">Select feed type</option>
-                  {ftList.map((ft: any) => <option key={ft.id} value={ft.id}>{ft.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="form-label">Transaction Type *</label>
-                <select className="form-input" value={stForm.transaction_type} onChange={e => setStForm(p => ({ ...p, transaction_type: e.target.value }))}>
-                  <option value="in">Purchase (IN)</option>
-                  <option value="out">Usage (OUT)</option>
-                  <option value="adjustment">Stock Adjustment</option>
-                </select>
-              </div>
-              <div>
-                <label className="form-label">Quantity *</label>
-                <input className="form-input" type="number" step="0.1" value={stForm.quantity} onChange={e => setStForm(p => ({ ...p, quantity: e.target.value }))} />
-              </div>
-              <div>
-                <label className="form-label">Unit Cost (PKR)</label>
-                <input className="form-input" type="number" value={stForm.unit_cost} onChange={e => setStForm(p => ({ ...p, unit_cost: e.target.value }))} />
-              </div>
-              <div>
-                <label className="form-label">Date *</label>
-                <input className="form-input" type="date" value={stForm.transaction_date} onChange={e => setStForm(p => ({ ...p, transaction_date: e.target.value }))} />
-              </div>
-              <div>
-                <label className="form-label">Reference</label>
-                <input className="form-input" value={stForm.reference} onChange={e => setStForm(p => ({ ...p, reference: e.target.value }))} placeholder="Invoice #, Vendor name…" />
-              </div>
-            </div>
-            <button className="btn-primary text-sm mt-4"
-              disabled={!stForm.feed_type_id || !stForm.quantity || addStock.isPending}
-              onClick={() => addStock.mutate({ ...stForm, quantity: stForm.quantity, unit_cost: stForm.unit_cost || undefined, reference: stForm.reference || undefined })}>
-              {addStock.isPending ? 'Saving…' : 'Save Stock Transaction'}
-            </button>
-            {addStock.isSuccess && <p className="text-xs text-green-600 mt-2">Stock updated successfully.</p>}
+          <div className="card p-4 max-w-2xl bg-blue-50 border border-blue-100">
+            <p className="text-sm text-blue-700 font-medium">Feed & supplement purchases are recorded in <strong>Inventory Management</strong> → Record Purchase.</p>
+            <p className="text-xs text-blue-500 mt-0.5">Stock is deducted here automatically when consumption is recorded.</p>
           </div>
         </div>
       )}

@@ -9,13 +9,37 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.models import (
     FeedType, FeedStockTransaction, FeedConsumption,
-    FeedTxType, FeedSession, Animal, AnimalSpecies, User
+    FeedTxType, FeedSession, Animal, AnimalSpecies, User,
+    Product, InventoryTransaction, InventoryTxType
 )
 
 router = APIRouter(tags=["Feed Management"])
 
 
 def get_org(u): return u.organization_id
+
+
+def _deduct_inventory_product(product_id: str, quantity: Decimal, org_id: str, tx_date, ref: str, created_by: str, db: Session):
+    product = db.query(Product).filter(Product.id == product_id, Product.organization_id == org_id).first()
+    if not product:
+        return
+    tx = InventoryTransaction(
+        organization_id=org_id,
+        product_id=product_id,
+        transaction_type=InventoryTxType.OUT,
+        quantity=quantity,
+        reference=ref,
+        transaction_date=tx_date,
+        created_by=created_by,
+    )
+    db.add(tx)
+    product.current_stock = max(Decimal("0"), (product.current_stock or Decimal("0")) - quantity)
+
+
+def _restore_inventory_product(product_id: str, quantity: Decimal, org_id: str, db: Session):
+    product = db.query(Product).filter(Product.id == product_id, Product.organization_id == org_id).first()
+    if product:
+        product.current_stock = (product.current_stock or Decimal("0")) + quantity
 
 
 # ─── FEED TYPES ───────────────────────────────────────────────────────────────
@@ -29,7 +53,7 @@ def list_feed_types(
     q = db.query(FeedType).filter(FeedType.organization_id == get_org(current_user))
     if not include_inactive:
         q = q.filter(FeedType.is_active == True)
-    items = q.order_by(FeedType.name).all()
+    items = q.options(joinedload(FeedType.inventory_product)).order_by(FeedType.name).all()
     return {"success": True, "data": [_feed_type_dict(f) for f in items]}
 
 
@@ -48,10 +72,12 @@ def create_feed_type(
         cost_per_unit=Decimal(str(body["cost_per_unit"])) if body.get("cost_per_unit") else None,
         suitable_for=body.get("suitable_for"),
         description=body.get("description"),
+        inventory_product_id=body.get("inventory_product_id") or None,
     )
     db.add(ft)
     db.commit()
     db.refresh(ft)
+    db.refresh(ft, attribute_names=["inventory_product"])
     return {"success": True, "data": _feed_type_dict(ft)}
 
 
@@ -71,8 +97,11 @@ def update_feed_type(
             setattr(ft, field, Decimal(str(body[field])))
     if "is_active" in body:
         ft.is_active = body["is_active"]
+    if "inventory_product_id" in body:
+        ft.inventory_product_id = body["inventory_product_id"] or None
     db.commit()
     db.refresh(ft)
+    db.refresh(ft, attribute_names=["inventory_product"])
     return {"success": True, "data": _feed_type_dict(ft)}
 
 
@@ -205,8 +234,17 @@ def create_feed_consumption(
     )
     db.add(record)
 
-    # Deduct from stock
+    # Deduct from feed type's own stock
     ft.current_stock = max(Decimal("0"), (ft.current_stock or Decimal("0")) - qty)
+
+    # Also deduct from linked inventory product (if set)
+    if ft.inventory_product_id:
+        _deduct_inventory_product(
+            ft.inventory_product_id, qty,
+            get_org(current_user),
+            date.fromisoformat(body["consumption_date"]),
+            f"Feed consumption: {ft.name}", current_user.id, db
+        )
 
     db.commit()
     db.refresh(record)
@@ -225,10 +263,11 @@ def delete_feed_consumption(
     ).first()
     if not record:
         raise HTTPException(404, "Record not found")
-    # Restore stock
     ft = db.query(FeedType).filter(FeedType.id == record.feed_type_id).first()
     if ft:
         ft.current_stock = (ft.current_stock or Decimal("0")) + record.quantity
+        if ft.inventory_product_id:
+            _restore_inventory_product(ft.inventory_product_id, record.quantity, get_org(current_user), db)
     db.delete(record)
     db.commit()
     return {"success": True}
@@ -248,9 +287,14 @@ def feed_summary(
     feed_types = db.query(FeedType).filter(
         FeedType.organization_id == org_id,
         FeedType.is_active == True,
-    ).all()
+    ).options(joinedload(FeedType.inventory_product)).all()
 
-    low_stock = [f for f in feed_types if (f.min_stock_level or 0) > 0 and (f.current_stock or 0) <= (f.min_stock_level or 0)]
+    def _eff_stock(f):
+        if f.inventory_product_id and f.inventory_product:
+            return float(f.inventory_product.current_stock or 0)
+        return float(f.current_stock or 0)
+
+    low_stock = [f for f in feed_types if (f.min_stock_level or 0) > 0 and _eff_stock(f) <= float(f.min_stock_level or 0)]
 
     # Total consumption last 30 days per feed type
     consumption_rows = (
@@ -293,10 +337,12 @@ def feed_summary(
             "feed_type_id": str(ft.id),
             "name": ft.name,
             "unit": ft.unit,
-            "current_stock": float(ft.current_stock or 0),
+            "current_stock": _eff_stock(ft),
+            "inventory_stock": float(ft.inventory_product.current_stock or 0) if (ft.inventory_product_id and ft.inventory_product) else None,
+            "inventory_product_id": str(ft.inventory_product_id) if ft.inventory_product_id else None,
             "min_stock_level": float(ft.min_stock_level or 0),
             "consumed_30d": consumption_map.get(str(ft.id), 0),
-            "is_low": (ft.min_stock_level or 0) > 0 and (ft.current_stock or 0) <= (ft.min_stock_level or 0),
+            "is_low": (ft.min_stock_level or 0) > 0 and _eff_stock(ft) <= float(ft.min_stock_level or 0),
         }
         for ft in feed_types
     ]
@@ -325,17 +371,29 @@ def _get_feed_type(feed_type_id: str, org_id: str, db: Session) -> FeedType:
 
 
 def _feed_type_dict(ft: FeedType) -> dict:
+    inv_stock = None
+    inv_product_name = None
+    if ft.inventory_product_id and ft.inventory_product:
+        inv_stock = float(ft.inventory_product.current_stock or 0)
+        inv_product_name = ft.inventory_product.name
+    feed_stock = float(ft.current_stock or 0)
+    effective_stock = inv_stock if inv_stock is not None else feed_stock
+    min_stock = float(ft.min_stock_level or 0)
     return {
         "id": str(ft.id),
         "name": ft.name,
         "unit": ft.unit,
-        "current_stock": float(ft.current_stock or 0),
-        "min_stock_level": float(ft.min_stock_level or 0),
+        "current_stock": feed_stock,
+        "inventory_stock": inv_stock,
+        "effective_stock": effective_stock,
+        "inventory_product_name": inv_product_name,
+        "min_stock_level": min_stock,
         "cost_per_unit": float(ft.cost_per_unit) if ft.cost_per_unit else None,
         "suitable_for": ft.suitable_for,
         "description": ft.description,
+        "inventory_product_id": str(ft.inventory_product_id) if ft.inventory_product_id else None,
         "is_active": ft.is_active,
-        "is_low_stock": (ft.min_stock_level or 0) > 0 and (ft.current_stock or 0) <= (ft.min_stock_level or 0),
+        "is_low_stock": min_stock > 0 and effective_stock <= min_stock,
         "created_at": ft.created_at.isoformat() if ft.created_at else None,
     }
 

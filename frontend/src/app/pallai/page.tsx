@@ -17,6 +17,10 @@ export default function PallaiPage() {
   const [packageForm, setPackageForm] = useState({ name: '', billing_model: 'monthly', price: '', includes_feed: false, includes_vet: false, description: '' })
   const [subForm, setSubForm] = useState({ customer_id: '', animal_id: '', package_id: '', start_date: '', monthly_fee: '', notes: '' })
   const [billingMonth, setBillingMonth] = useState('')
+  const [showSend, setShowSend] = useState(false)
+  const [sendMonth, setSendMonth] = useState('')
+  const [sendChannels, setSendChannels] = useState({ whatsapp: true, email: true })
+  const [sendResult, setSendResult] = useState<any>(null)
   const qc = useQueryClient()
 
   const { data: summary } = useQuery({ queryKey: ['pallai-summary'], queryFn: () => pallaiAPI.reportSummary().then(r => r.data.data) })
@@ -40,6 +44,11 @@ export default function PallaiPage() {
   const generateBilling = useMutation({
     mutationFn: (data: object) => pallaiAPI.generateBilling(data),
     onSuccess: (res: any) => { alert(`Generated ${res.data.data?.invoices_generated ?? 0} invoices`); setShowBilling(false) }
+  })
+  const sendBilling = useMutation({
+    mutationFn: (data: object) => pallaiAPI.sendBillingNotifications(data),
+    onSuccess: (res: any) => setSendResult(res.data.data),
+    onError: (e: any) => setSendResult({ error: e.response?.data?.detail || 'Failed' }),
   })
 
   return (
@@ -90,7 +99,12 @@ export default function PallaiPage() {
           {activeTab === 'Customers' && <button className="btn-primary" onClick={() => setShowAddCustomer(true)}>+ Add Customer</button>}
           {activeTab === 'Packages' && <button className="btn-primary" onClick={() => setShowAddPackage(true)}>+ Add Package</button>}
           {activeTab === 'Subscriptions' && <button className="btn-primary" onClick={() => setShowAddSubscription(true)}>+ Add Subscription</button>}
-          {activeTab === 'Billing' && <button className="btn-primary" onClick={() => setShowBilling(true)}>Generate Invoices</button>}
+          {activeTab === 'Billing' && (
+            <div className="flex gap-2">
+              <button className="btn-secondary" onClick={() => { setSendResult(null); setShowSend(true) }}>Send to Customers</button>
+              <button className="btn-primary" onClick={() => setShowBilling(true)}>Generate Invoices</button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -183,10 +197,29 @@ export default function PallaiPage() {
         <div className="space-y-4">
           <div className="card p-6">
             <h3 className="font-semibold text-gray-900 mb-2">Recurring Billing</h3>
-            <p className="text-sm text-gray-500 mb-4">Generate monthly invoices for all active Pallai subscriptions. Click "Generate Invoices" to create invoices for a specific billing month.</p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700">
+            <p className="text-sm text-gray-500 mb-4">Generate monthly invoices for all active Pallai subscriptions. Invoices auto-generate on the 1st of each month.</p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700 mb-4">
               Active subscriptions: <strong>{summary?.active_subscriptions ?? 0}</strong> ·
               Monthly revenue target: <strong>PKR {Number(summary?.monthly_revenue ?? 0).toLocaleString()}</strong>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <div className="text-xs text-gray-500 mb-1">Auto-Generation Schedule</div>
+                <div className="font-medium text-gray-800">1st of every month</div>
+                <div className="text-xs text-gray-400 mt-1">Generates for all active subscriptions</div>
+              </div>
+              <button className="border-2 border-dashed border-green-300 rounded-lg p-4 text-center hover:border-green-500 hover:bg-green-50 transition-colors"
+                onClick={() => setShowBilling(true)}>
+                <div className="text-2xl mb-1">📄</div>
+                <div className="font-medium text-green-700">Generate Invoices</div>
+                <div className="text-xs text-gray-500">Manually generate for a month</div>
+              </button>
+              <button className="border-2 border-dashed border-blue-300 rounded-lg p-4 text-center hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                onClick={() => { setSendResult(null); setShowSend(true) }}>
+                <div className="text-2xl mb-1">📬</div>
+                <div className="font-medium text-blue-700">Send to Customers</div>
+                <div className="text-xs text-gray-500">Send via WhatsApp &amp; Email</div>
+              </button>
             </div>
           </div>
         </div>
@@ -281,7 +314,8 @@ export default function PallaiPage() {
         <div className="modal-overlay" onClick={() => setShowBilling(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h3 className="font-semibold text-gray-900 mb-4">Generate Monthly Invoices</h3>
-            <p className="text-sm text-gray-500 mb-4">This will create invoices for all active subscriptions for the selected billing month.</p>
+            <p className="text-sm text-gray-500 mb-4">Create invoices for all active subscriptions for the selected billing month. Existing invoices for the same month are skipped.</p>
+            <label className="label">Billing Month *</label>
             <input className="form-input" type="month" value={billingMonth} onChange={e => setBillingMonth(e.target.value)} />
             <div className="flex gap-2 mt-4">
               <button className="btn-primary flex-1" onClick={() => generateBilling.mutate({ billing_month: billingMonth })} disabled={!billingMonth || generateBilling.isPending}>
@@ -289,6 +323,99 @@ export default function PallaiPage() {
               </button>
               <button className="btn-secondary" onClick={() => setShowBilling(false)}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Send Invoices Modal */}
+      {showSend && (
+        <div className="modal-overlay" onClick={() => setShowSend(false)}>
+          <div className="modal-content max-w-md" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-gray-900 mb-1">Send Invoices to Customers</h3>
+            <p className="text-sm text-gray-500 mb-4">Send generated invoices to customers via WhatsApp and/or email. Configure integration in Admin → Settings → Integrations.</p>
+
+            {!sendResult ? (
+              <>
+                <div className="space-y-3">
+                  <div>
+                    <label className="label">Billing Month *</label>
+                    <input className="form-input" type="month" value={sendMonth} onChange={e => setSendMonth(e.target.value)} />
+                    <p className="text-xs text-gray-400 mt-1">Only invoices generated for this month will be sent</p>
+                  </div>
+                  <div>
+                    <label className="label">Send Via</label>
+                    <div className="space-y-2 mt-1">
+                      <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input type="checkbox" checked={sendChannels.whatsapp} onChange={e => setSendChannels(c => ({ ...c, whatsapp: e.target.checked }))}
+                          className="h-4 w-4 text-green-600 rounded" />
+                        <div>
+                          <div className="text-sm font-medium">WhatsApp</div>
+                          <div className="text-xs text-gray-500">Requires WhatsApp Business API configured in settings</div>
+                        </div>
+                      </label>
+                      <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input type="checkbox" checked={sendChannels.email} onChange={e => setSendChannels(c => ({ ...c, email: e.target.checked }))}
+                          className="h-4 w-4 text-green-600 rounded" />
+                        <div>
+                          <div className="text-sm font-medium">Email (SMTP / OAuth2)</div>
+                          <div className="text-xs text-gray-500">Requires SMTP or OAuth2 email configured in settings</div>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-5">
+                  <button className="btn-primary flex-1"
+                    onClick={() => {
+                      const channels = []
+                      if (sendChannels.whatsapp) channels.push('whatsapp')
+                      if (sendChannels.email) channels.push('email')
+                      sendBilling.mutate({ billing_month: sendMonth, channels })
+                    }}
+                    disabled={!sendMonth || (!sendChannels.whatsapp && !sendChannels.email) || sendBilling.isPending}>
+                    {sendBilling.isPending ? 'Sending...' : 'Send Invoices'}
+                  </button>
+                  <button className="btn-secondary" onClick={() => setShowSend(false)}>Cancel</button>
+                </div>
+              </>
+            ) : sendResult.error ? (
+              <div>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">{sendResult.error}</div>
+                <button className="btn-secondary mt-3 w-full" onClick={() => setSendResult(null)}>Try Again</button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-green-700">{sendResult.whatsapp_sent}</div>
+                    <div className="text-xs text-gray-600">WhatsApp Sent</div>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-blue-700">{sendResult.email_sent}</div>
+                    <div className="text-xs text-gray-600">Emails Sent</div>
+                  </div>
+                  {sendResult.whatsapp_failed > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-red-600">{sendResult.whatsapp_failed}</div>
+                      <div className="text-xs text-gray-600">WA Failed</div>
+                    </div>
+                  )}
+                  {sendResult.email_failed > 0 && (
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-center">
+                      <div className="text-2xl font-bold text-orange-600">{sendResult.email_failed}</div>
+                      <div className="text-xs text-gray-600">Email Failed</div>
+                    </div>
+                  )}
+                </div>
+                {sendResult.errors?.length > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 max-h-32 overflow-y-auto">
+                    <div className="font-medium mb-1">Errors:</div>
+                    {sendResult.errors.map((e: string, i: number) => <div key={i} className="text-red-600">{e}</div>)}
+                  </div>
+                )}
+                <button className="btn-primary w-full" onClick={() => setShowSend(false)}>Done</button>
+              </div>
+            )}
           </div>
         </div>
       )}

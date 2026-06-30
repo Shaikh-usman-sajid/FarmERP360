@@ -201,6 +201,8 @@ class VaccinationCreate(BaseModel):
     administered_by: Optional[str] = None
     dose: Optional[str] = None
     notes: Optional[str] = None
+    medicine_product_id: Optional[str] = None
+    medicine_quantity: Optional[Decimal] = None
 
 
 class VaccinationOut(BaseModel):
@@ -211,6 +213,8 @@ class VaccinationOut(BaseModel):
     next_due_date: Optional[date]
     administered_by: Optional[str]
     dose: Optional[str]
+    medicine_product_id: Optional[str]
+    medicine_quantity: Optional[Decimal]
     created_at: datetime
 
     class Config:
@@ -228,6 +232,8 @@ class TreatmentCreate(BaseModel):
     follow_up_date: Optional[date] = None
     treated_by: Optional[str] = None
     cost: Optional[Decimal] = None
+    medicine_product_id: Optional[str] = None
+    medicine_quantity: Optional[Decimal] = None
 
 
 class TreatmentOut(BaseModel):
@@ -237,6 +243,8 @@ class TreatmentOut(BaseModel):
     treatment_date: date
     cost: Optional[Decimal]
     is_resolved: bool
+    medicine_product_id: Optional[str]
+    medicine_quantity: Optional[Decimal]
     created_at: datetime
 
     class Config:
@@ -402,6 +410,8 @@ class CropCycleCreate(BaseModel):
     variety: Optional[str] = None
     sowing_date: Optional[date] = None
     expected_harvest_date: Optional[date] = None
+    seed_product_id: Optional[str] = None
+    seed_quantity: Optional[Decimal] = None
     seed_cost: Optional[Decimal] = None
     fertilizer_cost: Optional[Decimal] = None
     labor_cost: Optional[Decimal] = None
@@ -417,6 +427,8 @@ class CropCycleOut(BaseModel):
     sowing_date: Optional[date]
     status: CropStatus
     actual_yield_kg: Optional[Decimal]
+    seed_product_id: Optional[str]
+    seed_quantity: Optional[Decimal]
     created_at: datetime
 
     class Config:
@@ -566,11 +578,22 @@ class PallaiCustomerOut(BaseModel):
     full_name: str
     phone: Optional[str]
     email: Optional[str]
+    address: Optional[str]
+    cnic: Optional[str]
     is_active: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class PallaiCustomerUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    address: Optional[str] = None
+    cnic: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class PallaiPackageCreate(BaseModel):
@@ -589,11 +612,22 @@ class PallaiPackageOut(BaseModel):
     price: Decimal
     includes_feed: bool
     includes_vet: bool
+    description: Optional[str]
     is_active: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class PallaiPackageUpdate(BaseModel):
+    name: Optional[str] = None
+    billing_model: Optional[str] = None
+    price: Optional[Decimal] = None
+    includes_feed: Optional[bool] = None
+    includes_vet: Optional[bool] = None
+    description: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class PallaiSubscriptionCreate(BaseModel):

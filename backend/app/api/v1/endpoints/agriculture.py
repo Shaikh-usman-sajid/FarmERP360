@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
+from decimal import Decimal
+from datetime import date
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.models import Field, CropCycle, User, CropStatus
+from app.models.models import Field, CropCycle, User, CropStatus, Product, InventoryTransaction, InventoryTxType
 from app.schemas.schemas import FieldCreate, FieldOut, CropCycleCreate, CropCycleOut
 
 router = APIRouter(tags=["Agriculture"])
@@ -13,6 +15,23 @@ harvest_router = APIRouter(prefix="/harvests")
 
 
 def get_org(u): return u.organization_id
+
+
+def _deduct_inventory(product_id: str, quantity: Decimal, org_id: str, tx_date, ref: str, created_by: str, db: Session):
+    product = db.query(Product).filter(Product.id == product_id, Product.organization_id == org_id).first()
+    if not product:
+        return
+    tx = InventoryTransaction(
+        organization_id=org_id,
+        product_id=product_id,
+        transaction_type=InventoryTxType.OUT,
+        quantity=quantity,
+        reference=ref,
+        transaction_date=tx_date,
+        created_by=created_by,
+    )
+    db.add(tx)
+    product.current_stock = max(Decimal("0"), (product.current_stock or Decimal("0")) - quantity)
 
 
 @field_router.get("")
@@ -96,6 +115,13 @@ def list_crops(
 def create_crop(payload: CropCycleCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     c = CropCycle(organization_id=get_org(current_user), **payload.dict())
     db.add(c)
+    if payload.seed_product_id and payload.seed_quantity:
+        tx_date = payload.sowing_date or date.today()
+        _deduct_inventory(
+            payload.seed_product_id, payload.seed_quantity,
+            get_org(current_user), tx_date,
+            f"Seed: {payload.crop_name}", current_user.id, db
+        )
     db.commit()
     db.refresh(c)
     return {"success": True, "data": CropCycleOut.from_orm(c)}

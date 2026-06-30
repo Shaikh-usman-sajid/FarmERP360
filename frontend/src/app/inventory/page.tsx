@@ -7,7 +7,7 @@ import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
 
 const today = new Date().toISOString().split('T')[0]
-const emptyTx = { product_id: '', transaction_type: 'in', quantity: '', unit_cost: '', reference: '', notes: '', transaction_date: today }
+const emptyTx = { product_id: '', transaction_type: 'in' as const, quantity: '', unit_cost: '', reference: '', notes: '', transaction_date: today }
 
 export default function InventoryPage() {
   const qc = useQueryClient()
@@ -78,7 +78,7 @@ export default function InventoryPage() {
 
   const transactionRows = filteredTransactions.map((t: any) => ({
     product: getProductName(t.product_id),
-    type: t.transaction_type.toUpperCase(),
+    type: t.transaction_type === 'in' ? 'Purchase' : t.transaction_type === 'out' ? 'OUT' : 'Adjustment',
     quantity: parseFloat(t.quantity).toFixed(2),
     date: t.transaction_date,
     reference: t.reference ?? '',
@@ -124,7 +124,7 @@ export default function InventoryPage() {
               title="Inventory"
             />
           )}
-          <button onClick={() => setShowAddTx(true)} className="btn-primary">+ Stock Transaction</button>
+          <button onClick={() => setShowAddTx(true)} className="btn-primary">+ Record Purchase</button>
         </div>
       </div>
 
@@ -181,8 +181,8 @@ export default function InventoryPage() {
               <label className="label">Type</label>
               <select className="input" value={tType} onChange={e => setTType(e.target.value)}>
                 <option value="">All Types</option>
-                <option value="in">IN</option>
-                <option value="out">OUT</option>
+                <option value="in">IN (Purchase)</option>
+                <option value="out">OUT (Auto-deducted)</option>
                 <option value="adjustment">Adjustment</option>
               </select>
             </div>
@@ -251,7 +251,7 @@ export default function InventoryPage() {
                   <td className="table-cell font-medium">{getProductName(t.product_id)}</td>
                   <td className="table-cell">
                     <span className={t.transaction_type === 'in' ? 'badge-active' : t.transaction_type === 'out' ? 'badge-danger' : 'badge-info'}>
-                      {t.transaction_type.toUpperCase()}
+                      {t.transaction_type === 'in' ? 'Purchase' : t.transaction_type === 'out' ? 'OUT' : 'Adjustment'}
                     </span>
                   </td>
                   <td className="table-cell font-bold">{parseFloat(t.quantity).toFixed(2)}</td>
@@ -272,10 +272,21 @@ export default function InventoryPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-md">
             <div className="flex items-center justify-between p-5 border-b">
-              <h2 className="text-lg font-bold">Stock Transaction</h2>
+              <div>
+                <h2 className="text-lg font-bold">Record Purchase</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Add procured stock to inventory</p>
+              </div>
               <button onClick={() => setShowAddTx(false)} className="text-gray-400 text-xl">✕</button>
             </div>
-            <form onSubmit={e => { e.preventDefault(); const d: any = { ...txForm }; d.quantity = parseFloat(d.quantity); if (d.unit_cost) { d.unit_cost = parseFloat(d.unit_cost); d.total_cost = d.quantity * d.unit_cost; } else { delete d.unit_cost; } if (!d.reference) delete d.reference; if (!d.notes) delete d.notes; createTx.mutate(d) }} className="p-5 space-y-4">
+            <form onSubmit={e => {
+              e.preventDefault()
+              const d: any = { ...txForm }
+              d.quantity = parseFloat(d.quantity)
+              if (d.unit_cost) { d.unit_cost = parseFloat(d.unit_cost); d.total_cost = d.quantity * d.unit_cost } else { delete d.unit_cost }
+              if (!d.reference) delete d.reference
+              if (!d.notes) delete d.notes
+              createTx.mutate(d)
+            }} className="p-5 space-y-4">
               <div>
                 <label className="label">Product *</label>
                 <select className="input" required value={txForm.product_id} onChange={e => setTxForm({ ...txForm, product_id: e.target.value })}>
@@ -287,33 +298,25 @@ export default function InventoryPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Type *</label>
-                  <select className="input" value={txForm.transaction_type} onChange={e => setTxForm({ ...txForm, transaction_type: e.target.value })}>
-                    <option value="in">IN (Purchase)</option>
-                    <option value="out">OUT (Usage)</option>
-                    <option value="adjustment">Adjustment</option>
-                  </select>
-                </div>
-                <div>
                   <label className="label">Quantity *</label>
-                  <input type="number" step="0.01" className="input" required value={txForm.quantity} onChange={e => setTxForm({ ...txForm, quantity: e.target.value })} />
+                  <input type="number" step="0.01" min="0.01" className="input" required value={txForm.quantity} onChange={e => setTxForm({ ...txForm, quantity: e.target.value })} />
                 </div>
                 <div>
                   <label className="label">Unit Cost (PKR)</label>
-                  <input type="number" className="input" value={txForm.unit_cost} onChange={e => setTxForm({ ...txForm, unit_cost: e.target.value })} />
+                  <input type="number" min="0" className="input" value={txForm.unit_cost} onChange={e => setTxForm({ ...txForm, unit_cost: e.target.value })} placeholder="0" />
                 </div>
-                <div>
-                  <label className="label">Date *</label>
+                <div className="col-span-2">
+                  <label className="label">Purchase Date *</label>
                   <input type="date" className="input" required value={txForm.transaction_date} onChange={e => setTxForm({ ...txForm, transaction_date: e.target.value })} />
                 </div>
               </div>
               <div>
-                <label className="label">Reference</label>
+                <label className="label">Reference / Bill No.</label>
                 <input className="input" value={txForm.reference} onChange={e => setTxForm({ ...txForm, reference: e.target.value })} placeholder="PO number, bill, etc." />
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowAddTx(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" disabled={createTx.isPending} className="btn-primary">{createTx.isPending ? 'Saving...' : 'Save'}</button>
+                <button type="submit" disabled={createTx.isPending} className="btn-primary">{createTx.isPending ? 'Saving...' : 'Record Purchase'}</button>
               </div>
             </form>
           </div>

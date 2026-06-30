@@ -1,13 +1,13 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { agricultureAPI } from '@/lib/api'
+import { agricultureAPI, inventoryAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
 import toast from 'react-hot-toast'
 
 const emptyField = { name: '', area_acres: '', soil_type: '', location_description: '' }
-const emptyCrop = { field_id: '', crop_name: '', variety: '', sowing_date: '', expected_harvest_date: '', seed_cost: '', fertilizer_cost: '', labor_cost: '', expected_yield_kg: '' }
+const emptyCrop = { field_id: '', crop_name: '', variety: '', sowing_date: '', expected_harvest_date: '', seed_product_id: '', seed_quantity: '', seed_cost: '', fertilizer_cost: '', labor_cost: '', expected_yield_kg: '' }
 
 const statusColors: any = { planned: 'badge-info', growing: 'badge-active', harvested: 'badge-gray', failed: 'badge-danger' }
 
@@ -39,6 +39,12 @@ export default function AgriculturePage() {
     queryFn: () => agricultureAPI.listFields({ search: fieldSearch || undefined, soil_type: fieldSoilType || undefined }).then(r => r.data.data),
   })
 
+  const { data: productsData } = useQuery({
+    queryKey: ['products-all'],
+    queryFn: () => inventoryAPI.listProducts({ per_page: 200 }).then(r => r.data.data),
+  })
+  const seedProducts: any[] = productsData?.items ?? []
+
   const { data: crops } = useQuery({
     queryKey: ['crops', cropSearch, cropStatus, cropFieldId, cropSowingFrom, cropSowingTo],
     queryFn: () => agricultureAPI.listCrops({ search: cropSearch || undefined, status: cropStatus || undefined, field_id: cropFieldId || undefined, sowing_date_from: cropSowingFrom || undefined, sowing_date_to: cropSowingTo || undefined }).then(r => r.data.data),
@@ -53,7 +59,7 @@ export default function AgriculturePage() {
 
   const createCrop = useMutation({
     mutationFn: (d: any) => agricultureAPI.createCrop(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crops'] }); toast.success('Crop cycle added!'); setShowAddCrop(false); setCropForm(emptyCrop) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['crops'] }); qc.invalidateQueries({ queryKey: ['products'] }); toast.success('Crop cycle added!'); setShowAddCrop(false); setCropForm(emptyCrop) },
     onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
   })
 
@@ -293,6 +299,8 @@ export default function AgriculturePage() {
               if (d.expected_yield_kg) d.expected_yield_kg = parseFloat(d.expected_yield_kg)
               if (!d.sowing_date) delete d.sowing_date
               if (!d.expected_harvest_date) delete d.expected_harvest_date
+              if (d.seed_product_id && d.seed_quantity) d.seed_quantity = parseFloat(d.seed_quantity)
+              else { delete d.seed_product_id; delete d.seed_quantity }
               createCrop.mutate(d)
             }} className="p-5 space-y-4">
               <div>
@@ -326,6 +334,24 @@ export default function AgriculturePage() {
                 <div>
                   <label className="label">Expected Yield (kg)</label>
                   <input type="number" className="input" value={cropForm.expected_yield_kg} onChange={e => setCropForm({ ...cropForm, expected_yield_kg: e.target.value })} />
+                </div>
+              </div>
+              <div className="border-t pt-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Seed from Inventory (optional)</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Seed Product</label>
+                    <select className="input" value={cropForm.seed_product_id} onChange={e => setCropForm({ ...cropForm, seed_product_id: e.target.value, seed_quantity: '' })}>
+                      <option value="">None / not tracked</option>
+                      {seedProducts.map((p: any) => (
+                        <option key={p.id} value={p.id}>{p.name} ({parseFloat(p.current_stock).toFixed(1)} {p.unit})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Seed Quantity Used</label>
+                    <input type="number" step="0.001" min="0.001" className="input" value={cropForm.seed_quantity} onChange={e => setCropForm({ ...cropForm, seed_quantity: e.target.value })} placeholder="e.g. 10" disabled={!cropForm.seed_product_id} />
+                  </div>
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">

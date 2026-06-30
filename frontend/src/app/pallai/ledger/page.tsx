@@ -3,11 +3,15 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { pallaiAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import ExportButtons from '@/components/ui/ExportButtons'
 
 export default function PallaiLedgerPage() {
   const [selectedCustomer, setSelectedCustomer] = useState('')
   const [search, setSearch] = useState('')
   const [filterOutstanding, setFilterOutstanding] = useState(false)
+  const [filterInactive, setFilterInactive] = useState(false)
+  const [minOutstanding, setMinOutstanding] = useState('')
+  const [maxOutstanding, setMaxOutstanding] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -38,18 +42,25 @@ export default function PallaiLedgerPage() {
     enabled: !!selectedCustomer,
   })
 
-  const selectedCustomerData = (customers as any[]).find((c: any) => c.id === selectedCustomer)
+  const selectedCustomerData = (summary as any[]).find((c: any) => c.id === selectedCustomer)
+    || (customers as any[]).find((c: any) => c.id === selectedCustomer)
   const totalBilled = (ledger as any[]).reduce((sum: number, e: any) => sum + Number(e.amount || 0), 0)
   const totalPaid = (ledger as any[]).reduce((sum: number, e: any) => sum + Number(e.paid_amount || 0), 0)
 
   // Filter summary table
   const filteredSummary = (summary as any[]).filter((c: any) => {
-    if (search && !c.full_name.toLowerCase().includes(search.toLowerCase()) && !c.phone.includes(search)) return false
+    if (search) {
+      const term = search.toLowerCase()
+      if (!c.full_name.toLowerCase().includes(term) && !c.phone?.includes(search) && !c.cnic?.includes(search) && !c.email?.toLowerCase().includes(term)) return false
+    }
     if (filterOutstanding && c.outstanding <= 0) return false
+    if (!filterInactive && !c.is_active) return false
+    if (minOutstanding && c.outstanding < Number(minOutstanding)) return false
+    if (maxOutstanding && c.outstanding > Number(maxOutstanding)) return false
     return true
   })
 
-  const clearFilters = () => { setSearch(''); setFilterOutstanding(false) }
+  const clearFilters = () => { setSearch(''); setFilterOutstanding(false); setFilterInactive(false); setMinOutstanding(''); setMaxOutstanding('') }
   const clearLedgerFilters = () => { setDateFrom(''); setDateTo(''); setStatusFilter('') }
 
   return (
@@ -66,24 +77,63 @@ export default function PallaiLedgerPage() {
 
       {!selectedCustomer ? (
         <>
+          {/* Export */}
+          {filteredSummary.length > 0 && (
+            <div className="flex justify-end mb-3">
+              <ExportButtons
+                columns={[
+                  { header: 'Customer', key: 'Customer' },
+                  { header: 'Phone', key: 'Phone' },
+                  { header: 'Email', key: 'Email' },
+                  { header: 'CNIC', key: 'CNIC' },
+                  { header: 'Status', key: 'Status' },
+                  { header: 'Invoices', key: 'Invoices' },
+                  { header: 'Total Billed', key: 'Total Billed' },
+                  { header: 'Total Paid', key: 'Total Paid' },
+                  { header: 'Outstanding', key: 'Outstanding' },
+                ]}
+                rows={filteredSummary.map((c: any) => ({
+                  Customer: c.full_name,
+                  Phone: c.phone || '',
+                  Email: c.email || '',
+                  CNIC: c.cnic || '',
+                  Status: c.is_active ? 'Active' : 'Inactive',
+                  Invoices: c.invoice_count,
+                  'Total Billed': Number(c.total_billed).toFixed(2),
+                  'Total Paid': Number(c.total_paid).toFixed(2),
+                  Outstanding: Number(c.outstanding).toFixed(2),
+                }))}
+                filename="pallai-customer-ledgers"
+                title="Customer Ledger Summary"
+              />
+            </div>
+          )}
           {/* Summary filters */}
           <div className="card p-4 mb-5">
             <div className="flex flex-wrap gap-4 items-end">
+              <div className="flex-1 min-w-48">
+                <label className="label">Search</label>
+                <input className="input" placeholder="Name, phone, email or CNIC..." value={search} onChange={e => setSearch(e.target.value)} />
+              </div>
               <div>
-                <label className="label">Search Customer</label>
-                <input className="input" placeholder="Name or phone..." value={search} onChange={e => setSearch(e.target.value)} />
+                <label className="label">Min Outstanding (PKR)</label>
+                <input className="input w-36" type="number" min="0" placeholder="0" value={minOutstanding} onChange={e => setMinOutstanding(e.target.value)} />
               </div>
-              <div className="flex items-center gap-2 self-end pb-1">
-                <input
-                  type="checkbox"
-                  id="outstanding"
-                  checked={filterOutstanding}
-                  onChange={e => setFilterOutstanding(e.target.checked)}
-                  className="h-4 w-4 text-green-600 rounded"
-                />
-                <label htmlFor="outstanding" className="text-sm text-gray-700">Outstanding balance only</label>
+              <div>
+                <label className="label">Max Outstanding (PKR)</label>
+                <input className="input w-36" type="number" min="0" placeholder="Any" value={maxOutstanding} onChange={e => setMaxOutstanding(e.target.value)} />
               </div>
-              {(search || filterOutstanding) && (
+              <div className="flex flex-col gap-2 self-end pb-1">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" id="outstanding" checked={filterOutstanding} onChange={e => setFilterOutstanding(e.target.checked)} className="h-4 w-4 text-green-600 rounded" />
+                  <span className="text-gray-700">Has outstanding balance</span>
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" id="inactive" checked={filterInactive} onChange={e => setFilterInactive(e.target.checked)} className="h-4 w-4 text-green-600 rounded" />
+                  <span className="text-gray-700">Include inactive customers</span>
+                </label>
+              </div>
+              {(search || filterOutstanding || filterInactive || minOutstanding || maxOutstanding) && (
                 <button onClick={clearFilters} className="btn-secondary text-sm self-end">✕ Clear</button>
               )}
             </div>
@@ -104,8 +154,11 @@ export default function PallaiLedgerPage() {
                 </thead>
                 <tbody>
                   {filteredSummary.map((c: any) => (
-                    <tr key={c.id} className="table-row">
-                      <td className="table-cell font-semibold">{c.full_name}</td>
+                    <tr key={c.id} className={`table-row ${!c.is_active ? 'opacity-60' : ''}`}>
+                      <td className="table-cell font-semibold">
+                        {c.full_name}
+                        {!c.is_active && <span className="ml-2 text-xs text-gray-400">(Inactive)</span>}
+                      </td>
                       <td className="table-cell text-gray-500">{c.phone || '—'}</td>
                       <td className="table-cell">{c.invoice_count}</td>
                       <td className="table-cell">PKR {Number(c.total_billed).toLocaleString()}</td>
@@ -209,6 +262,7 @@ export default function PallaiLedgerPage() {
                   <option value="sent">Sent</option>
                   <option value="paid">Paid</option>
                   <option value="overdue">Overdue</option>
+                  <option value="cancelled">Cancelled</option>
                 </select>
               </div>
               {(dateFrom || dateTo || statusFilter) && (

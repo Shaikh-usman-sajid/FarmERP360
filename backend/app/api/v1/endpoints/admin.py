@@ -2,9 +2,13 @@ import io
 import hashlib
 import hmac
 import json
+import smtplib
+import ssl
 import time
 from datetime import datetime, timedelta
-from typing import Optional
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Optional, List
 
 import httpx
 import qrcode
@@ -17,7 +21,8 @@ from app.core.database import get_db
 from app.core.deps import get_current_user, require_roles
 from app.models.models import (
     AuditLog, User, SystemSettings, Animal, Invoice, InvoiceStatus,
-    Vaccination, FeedType, FeedStockTransaction, UserRole, AnimalBreed, AnimalSpecies
+    Vaccination, FeedType, FeedStockTransaction, UserRole, AnimalBreed, AnimalSpecies,
+    PallaiCustomer, PallaiSubscription,
 )
 from sqlalchemy import or_
 
@@ -84,6 +89,22 @@ DEFAULT_SETTINGS = {
     "jazzcash_merchant_id": ("integrations", "", True),
     "jazzcash_password": ("integrations", "", True),
     "jazzcash_integrity_salt": ("integrations", "", True),
+    # integrations — smtp (simple auth)
+    "smtp_enabled": ("integrations", "false", False),
+    "smtp_host": ("integrations", "", False),
+    "smtp_port": ("integrations", "587", False),
+    "smtp_username": ("integrations", "", False),
+    "smtp_password": ("integrations", "", True),
+    "smtp_from_email": ("integrations", "", False),
+    "smtp_from_name": ("integrations", "FarmERP360", False),
+    "smtp_use_tls": ("integrations", "true", False),
+    # integrations — smtp (oauth2 / microsoft 365)
+    "smtp_oauth_enabled": ("integrations", "false", False),
+    "smtp_oauth_client_id": ("integrations", "", True),
+    "smtp_oauth_client_secret": ("integrations", "", True),
+    "smtp_oauth_tenant_id": ("integrations", "", False),
+    "smtp_oauth_refresh_token": ("integrations", "", True),
+    "smtp_oauth_from_email": ("integrations", "", False),
 }
 
 
@@ -373,6 +394,220 @@ async def send_alerts(
             failed += 1
 
     return {"success": True, "data": {"sent": sent, "failed": failed, "message_preview": message}}
+
+
+# ──────────────────────────────────────────────────────────────
+# EMAIL (SMTP + OAUTH2)
+# ──────────────────────────────────────────────────────────────
+
+def _send_email_smtp(
+    host: str, port: int, username: str, password: str,
+    from_email: str, from_name: str, use_tls: bool,
+    to_email: str, subject: str, body_html: str,
+) -> None:
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = subject
+    msg["From"] = f"{from_name} <{from_email}>" if from_name else from_email
+    msg["To"] = to_email
+    msg.attach(MIMEText(body_html, "html", "utf-8"))
+    ctx = ssl.create_default_context()
+    if use_tls:
+        with smtplib.SMTP(host, port, timeout=15) as server:
+            server.ehlo()
+            server.starttls(context=ctx)
+            server.login(username, password)
+            server.sendmail(from_email, to_email, msg.as_string())
+    else:
+        with smtplib.SMTP_SSL(host, port, context=ctx, timeout=15) as server:
+            server.login(username, password)
+            server.sendmail(from_email, to_email, msg.as_string())
+
+
+async def _send_email_oauth2(
+    client_id: str, client_secret: str, tenant_id: str, refresh_token: str,
+    from_email: str, to_email: str, subject: str, body_html: str,
+) -> None:
+    token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(token_url, data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token",
+            "scope": "https://graph.microsoft.com/.default",
+        })
+        resp.raise_for_status()
+        access_token = resp.json()["access_token"]
+
+        graph_url = f"https://graph.microsoft.com/v1.0/users/{from_email}/sendMail"
+        payload = {
+            "message": {
+                "subject": subject,
+                "body": {"contentType": "HTML", "content": body_html},
+                "toRecipients": [{"emailAddress": {"address": to_email}}],
+            }
+        }
+        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
+        r = await client.post(graph_url, json=payload, headers=headers)
+        r.raise_for_status()
+
+
+@router.post("/admin/notifications/email/test")
+async def test_email(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["super_admin", "owner"])),
+):
+    org_id = _org(current_user)
+    to_email = payload.get("to", "").strip()
+    if not to_email:
+        raise HTTPException(400, "Recipient email required")
+
+    smtp_enabled = _get_setting(db, org_id, "smtp_enabled") == "true"
+    oauth_enabled = _get_setting(db, org_id, "smtp_oauth_enabled") == "true"
+
+    if not smtp_enabled and not oauth_enabled:
+        raise HTTPException(400, "No email method enabled. Enable SMTP or OAuth2 in Admin → Integrations.")
+
+    subject = "FarmERP360 — Test Email"
+    body = "<h2>Test Email</h2><p>This test email was sent from your FarmERP360 system.</p>"
+
+    try:
+        if oauth_enabled:
+            await _send_email_oauth2(
+                _get_setting(db, org_id, "smtp_oauth_client_id") or "",
+                _get_setting(db, org_id, "smtp_oauth_client_secret") or "",
+                _get_setting(db, org_id, "smtp_oauth_tenant_id") or "",
+                _get_setting(db, org_id, "smtp_oauth_refresh_token") or "",
+                _get_setting(db, org_id, "smtp_oauth_from_email") or "",
+                to_email, subject, body,
+            )
+        else:
+            _send_email_smtp(
+                _get_setting(db, org_id, "smtp_host") or "",
+                int(_get_setting(db, org_id, "smtp_port") or "587"),
+                _get_setting(db, org_id, "smtp_username") or "",
+                _get_setting(db, org_id, "smtp_password") or "",
+                _get_setting(db, org_id, "smtp_from_email") or "",
+                _get_setting(db, org_id, "smtp_from_name") or "FarmERP360",
+                _get_setting(db, org_id, "smtp_use_tls") != "false",
+                to_email, subject, body,
+            )
+        return {"success": True, "data": {"status": "sent", "to": to_email}}
+    except Exception as e:
+        raise HTTPException(500, f"Email send failed: {str(e)}")
+
+
+@router.post("/admin/pallai/billing/send")
+async def send_pallai_billing_notifications(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["super_admin", "owner", "accountant"])),
+):
+    """
+    Send Pallai invoices to customers via WhatsApp and/or Email.
+    payload: { billing_month: 'YYYY-MM', channels: ['whatsapp','email'], invoice_ids: optional }
+    """
+    from datetime import date as date_type
+    import calendar as cal_mod
+
+    org_id = _org(current_user)
+    billing_month = payload.get("billing_month", "")
+    channels = payload.get("channels", ["whatsapp", "email"])
+    invoice_ids = payload.get("invoice_ids")
+
+    q = db.query(Invoice).filter(
+        Invoice.organization_id == org_id,
+        Invoice.subscription_id.isnot(None),
+    )
+    if billing_month:
+        try:
+            year, month = billing_month.split("-")
+            first_day = date_type(int(year), int(month), 1)
+            q = q.filter(Invoice.issue_date == first_day)
+        except (ValueError, AttributeError):
+            raise HTTPException(422, "billing_month must be YYYY-MM")
+    if invoice_ids:
+        q = q.filter(Invoice.id.in_(invoice_ids))
+    invoices = q.all()
+    if not invoices:
+        raise HTTPException(404, "No invoices found for the specified criteria")
+
+    wa_enabled = _get_setting(db, org_id, "whatsapp_enabled") == "true"
+    wa_pid = _get_setting(db, org_id, "whatsapp_phone_number_id") or ""
+    wa_token = _get_setting(db, org_id, "whatsapp_access_token") or ""
+
+    smtp_enabled = _get_setting(db, org_id, "smtp_enabled") == "true"
+    oauth_enabled = _get_setting(db, org_id, "smtp_oauth_enabled") == "true"
+    smtp_host = _get_setting(db, org_id, "smtp_host") or ""
+    smtp_port = int(_get_setting(db, org_id, "smtp_port") or "587")
+    smtp_user = _get_setting(db, org_id, "smtp_username") or ""
+    smtp_pass = _get_setting(db, org_id, "smtp_password") or ""
+    smtp_from = _get_setting(db, org_id, "smtp_from_email") or ""
+    smtp_name = _get_setting(db, org_id, "smtp_from_name") or "FarmERP360"
+    smtp_tls = _get_setting(db, org_id, "smtp_use_tls") != "false"
+    oauth_cid = _get_setting(db, org_id, "smtp_oauth_client_id") or ""
+    oauth_sec = _get_setting(db, org_id, "smtp_oauth_client_secret") or ""
+    oauth_tid = _get_setting(db, org_id, "smtp_oauth_tenant_id") or ""
+    oauth_ref = _get_setting(db, org_id, "smtp_oauth_refresh_token") or ""
+    oauth_frm = _get_setting(db, org_id, "smtp_oauth_from_email") or ""
+    org_name = _get_setting(db, org_id, "org_name") or "FarmERP360"
+
+    results = {"whatsapp_sent": 0, "whatsapp_failed": 0, "email_sent": 0, "email_failed": 0, "errors": []}
+
+    for inv in invoices:
+        customer = db.query(PallaiCustomer).filter(PallaiCustomer.id == inv.customer_id).first()
+        if not customer:
+            continue
+
+        inv_text = (
+            f"Dear {customer.full_name},\n\n"
+            f"Your invoice {inv.invoice_number} for PKR {float(inv.total_amount or 0):,.0f} "
+            f"is due on {inv.due_date}.\n\nPlease contact us for payment.\n\n— {org_name}"
+        )
+        inv_html = (
+            f"<p>Dear <strong>{customer.full_name}</strong>,</p>"
+            f"<p>Please find your invoice details below:</p>"
+            f"<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-family:sans-serif'>"
+            f"<tr><td><b>Invoice #</b></td><td>{inv.invoice_number}</td></tr>"
+            f"<tr><td><b>Amount</b></td><td>PKR {float(inv.total_amount or 0):,.2f}</td></tr>"
+            f"<tr><td><b>Due Date</b></td><td>{inv.due_date}</td></tr>"
+            f"<tr><td><b>Status</b></td><td>{inv.status.value if inv.status else 'draft'}</td></tr>"
+            f"</table>"
+            f"<p>Please contact us for payment details.</p>"
+            f"<p>— <em>{org_name}</em></p>"
+        )
+
+        if "whatsapp" in channels and wa_enabled and wa_pid and wa_token and customer.phone:
+            try:
+                result = await _send_whatsapp(wa_pid, wa_token, customer.phone.strip(), inv_text)
+                if "error" in result:
+                    results["whatsapp_failed"] += 1
+                    results["errors"].append(f"WA {customer.phone}: {result['error'].get('message','error')}")
+                else:
+                    results["whatsapp_sent"] += 1
+            except Exception as e:
+                results["whatsapp_failed"] += 1
+                results["errors"].append(f"WA {customer.phone}: {str(e)}")
+
+        if "email" in channels and customer.email:
+            try:
+                subj = f"Invoice {inv.invoice_number} — {org_name}"
+                if oauth_enabled and oauth_cid and oauth_ref:
+                    await _send_email_oauth2(oauth_cid, oauth_sec, oauth_tid, oauth_ref, oauth_frm, customer.email, subj, inv_html)
+                elif smtp_enabled and smtp_host and smtp_from:
+                    _send_email_smtp(smtp_host, smtp_port, smtp_user, smtp_pass, smtp_from, smtp_name, smtp_tls, customer.email, subj, inv_html)
+                else:
+                    results["email_failed"] += 1
+                    results["errors"].append(f"Email to {customer.email}: no email method configured")
+                    continue
+                results["email_sent"] += 1
+            except Exception as e:
+                results["email_failed"] += 1
+                results["errors"].append(f"Email {customer.email}: {str(e)}")
+
+    total = results["whatsapp_sent"] + results["email_sent"]
+    return {"success": True, "data": {**results, "total_sent": total, "invoices_processed": len(invoices)}}
 
 
 # ──────────────────────────────────────────────────────────────
