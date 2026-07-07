@@ -8,12 +8,13 @@ import ExportButtons from '@/components/ui/ExportButtons'
 
 const TABS = ['Employees', 'Salary History', 'Monthly Payroll'] as const
 type Tab = typeof TABS[number]
+type ViewMode = 'card' | 'list'
 
 const DEPARTMENTS = ['Operations', 'Dairy', 'Health', 'Agriculture', 'Transport', 'Admin', 'HR', 'Finance']
 const CHANGE_REASONS = ['Initial Appointment', 'Annual Raise', 'Promotion', 'Performance Bonus', 'Market Adjustment', 'Other']
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-const emptyEmpForm = { employee_code: '', full_name: '', cnic: '', phone: '', designation: '', department: '', join_date: '', monthly_salary: '' }
+const emptyEmpForm = { employee_code: '', full_name: '', cnic: '', phone: '', address: '', designation: '', department: '', join_date: '', monthly_salary: '' }
 const emptySalaryForm = { salary_amount: '', effective_date: '', change_reason: 'Annual Raise', notes: '' }
 const emptyPayrollForm = { month: new Date().getMonth() + 1, year: new Date().getFullYear(), notes: '' }
 
@@ -26,9 +27,22 @@ const STATUS_COLORS: Record<string, string> = {
   paid: 'bg-green-100 text-green-700',
 }
 
+function Avatar({ photoUrl, name, size = 'md' }: { photoUrl?: string | null; name: string; size?: 'sm' | 'md' | 'lg' }) {
+  const cls = size === 'lg' ? 'w-20 h-20 text-2xl' : size === 'sm' ? 'w-8 h-8 text-sm' : 'w-12 h-12 text-xl'
+  if (photoUrl) {
+    return <img src={photoUrl} alt={name} className={`${cls} rounded-full object-cover border-2 border-green-100 flex-shrink-0`} />
+  }
+  return (
+    <div className={`${cls} rounded-full bg-green-100 flex items-center justify-center text-green-700 font-bold flex-shrink-0`}>
+      {name[0]?.toUpperCase()}
+    </div>
+  )
+}
+
 export default function EmployeesPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('Employees')
+  const [viewMode, setViewMode] = useState<ViewMode>('card')
 
   // ─── Employees filters ────────────────────────────────────────
   const [search, setSearch] = useState('')
@@ -43,6 +57,9 @@ export default function EmployeesPage() {
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
+
+  // ─── Detail modal ─────────────────────────────────────────────
+  const [detailEmp, setDetailEmp] = useState<any>(null)
 
   // ─── Salary / Raise modal ─────────────────────────────────────
   const [showSalaryModal, setShowSalaryModal] = useState(false)
@@ -63,6 +80,14 @@ export default function EmployeesPage() {
     queryFn: () => employeesAPI.list({ per_page: 100, search: search || undefined, department: department || undefined, status: empStatus || undefined }).then(r => r.data.data),
   })
   const employees: any[] = empData?.items ?? []
+
+  // Salary history for detail modal
+  const { data: detailSalaryData } = useQuery({
+    queryKey: ['salary-history', detailEmp?.id],
+    queryFn: () => employeesAPI.getSalaryHistory(detailEmp!.id).then(r => r.data.data),
+    enabled: !!detailEmp,
+  })
+  const detailSalaryHistory: any[] = detailSalaryData ?? []
 
   const { data: salaryHistData } = useQuery({
     queryKey: ['salary-history-all', salaryFilterEmp],
@@ -89,41 +114,29 @@ export default function EmployeesPage() {
     mutationFn: async (d: any) => {
       const res = await employeesAPI.create(d)
       const empId = res.data?.data?.id
-      if (photoFile && empId) {
-        await employeesAPI.uploadPhoto(empId, photoFile)
-      }
+      if (photoFile && empId) await employeesAPI.uploadPhoto(empId, photoFile)
       return res
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['employees'] })
-      toast.success('Employee added!')
-      closeEmpModal()
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['employees'] }); toast.success('Employee added!'); closeEmpModal() },
     onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed to add employee'),
   })
 
   const updateEmpMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       const res = await employeesAPI.update(id, data)
-      if (photoFile) {
-        await employeesAPI.uploadPhoto(id, photoFile)
-      }
+      if (photoFile) await employeesAPI.uploadPhoto(id, photoFile)
       return res
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['employees'] })
-      toast.success('Employee updated!')
-      closeEmpModal()
-    },
-    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed to update'),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['employees'] }); toast.success('Employee updated!'); closeEmpModal() },
+    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
   })
 
   const addSalaryMutation = useMutation({
-    mutationFn: ({ empId, data }: { empId: string; data: any }) =>
-      employeesAPI.addSalaryRecord(empId, data),
+    mutationFn: ({ empId, data }: { empId: string; data: any }) => employeesAPI.addSalaryRecord(empId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['employees'] })
       qc.invalidateQueries({ queryKey: ['salary-history-all'] })
+      qc.invalidateQueries({ queryKey: ['salary-history', salaryEmp?.id] })
       toast.success('Salary record added!')
       setShowSalaryModal(false)
       setSalaryForm(emptySalaryForm)
@@ -146,99 +159,57 @@ export default function EmployeesPage() {
 
   const submitPayrollMutation = useMutation({
     mutationFn: (id: string) => accountingAPI.submitPayroll(id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['payroll-runs-hr'] })
-      toast.success('Payroll submitted to Finance!')
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['payroll-runs-hr'] }); toast.success('Payroll submitted to Finance!') },
     onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
   })
 
   // ─── Helpers ──────────────────────────────────────────────────
   function closeEmpModal() {
-    setShowEmpModal(false)
-    setEditingEmp(null)
-    setEmpForm(emptyEmpForm)
-    setPhotoFile(null)
-    setPhotoPreview(null)
+    setShowEmpModal(false); setEditingEmp(null); setEmpForm(emptyEmpForm)
+    setPhotoFile(null); setPhotoPreview(null)
   }
 
   function openAddEmp() {
-    setEditingEmp(null)
-    setEmpForm(emptyEmpForm)
-    setPhotoFile(null)
-    setPhotoPreview(null)
-    setShowEmpModal(true)
+    setEditingEmp(null); setEmpForm(emptyEmpForm); setPhotoFile(null); setPhotoPreview(null); setShowEmpModal(true)
   }
 
   function openEditEmp(e: any) {
     setEditingEmp(e)
-    setEmpForm({
-      employee_code: e.employee_code || '',
-      full_name: e.full_name,
-      cnic: e.cnic || '',
-      phone: e.phone || '',
-      designation: e.designation || '',
-      department: e.department || '',
-      join_date: e.join_date || '',
-      monthly_salary: e.monthly_salary ? String(e.monthly_salary) : '',
-    })
-    setPhotoFile(null)
-    setPhotoPreview(e.photo_url ? e.photo_url : null)
-    setShowEmpModal(true)
+    setEmpForm({ employee_code: e.employee_code || '', full_name: e.full_name, cnic: e.cnic || '', phone: e.phone || '', address: e.address || '', designation: e.designation || '', department: e.department || '', join_date: e.join_date || '', monthly_salary: e.monthly_salary ? String(e.monthly_salary) : '' })
+    setPhotoFile(null); setPhotoPreview(e.photo_url ?? null); setShowEmpModal(true)
   }
 
   function openRaise(e: any) {
     setSalaryEmp(e)
-    setSalaryForm({
-      ...emptySalaryForm,
-      effective_date: new Date().toISOString().split('T')[0],
-    })
+    setSalaryForm({ ...emptySalaryForm, effective_date: new Date().toISOString().split('T')[0] })
     setShowSalaryModal(true)
   }
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setPhotoFile(file)
-    setPhotoPreview(URL.createObjectURL(file))
+    const file = e.target.files?.[0]; if (!file) return
+    setPhotoFile(file); setPhotoPreview(URL.createObjectURL(file))
   }
 
   function submitEmpForm(e: React.FormEvent) {
     e.preventDefault()
-    if (!editingEmp && !photoFile) {
-      toast.error('Employee photo is required')
-      return
-    }
+    if (!editingEmp && !photoFile) { toast.error('Employee photo is required'); return }
     const d: any = { ...empForm }
-    if (d.monthly_salary) d.monthly_salary = parseFloat(d.monthly_salary)
-    else delete d.monthly_salary
+    if (d.monthly_salary) d.monthly_salary = parseFloat(d.monthly_salary); else delete d.monthly_salary
     if (!d.join_date) delete d.join_date
-    if (editingEmp) {
-      updateEmpMutation.mutate({ id: editingEmp.id, data: d })
-    } else {
-      createEmpMutation.mutate(d)
-    }
+    if (!d.address) delete d.address
+    if (editingEmp) updateEmpMutation.mutate({ id: editingEmp.id, data: d })
+    else createEmpMutation.mutate(d)
   }
 
   const exportRows = employees.map((e: any) => ({
-    name: e.full_name,
-    code: e.employee_code || '',
-    designation: e.designation || '',
-    department: e.department || '',
-    phone: e.phone || '',
-    cnic: e.cnic || '',
-    salary: e.monthly_salary ? Number(e.monthly_salary) : '',
-    join_date: e.join_date || '',
-    status: e.status,
+    name: e.full_name, code: e.employee_code || '', designation: e.designation || '',
+    department: e.department || '', phone: e.phone || '', cnic: e.cnic || '',
+    salary: e.monthly_salary ? Number(e.monthly_salary) : '', join_date: e.join_date || '', status: e.status,
   }))
 
   const salaryExportRows = salaryHistory.map((h: any) => ({
-    employee: h.employee_name,
-    code: h.employee_code || '',
-    effective_date: h.effective_date,
-    previous_salary: h.previous_salary ? Number(h.previous_salary) : '',
-    new_salary: Number(h.salary_amount),
-    reason: h.change_reason || '',
+    employee: h.employee_name, code: h.employee_code || '', effective_date: h.effective_date,
+    previous_salary: h.previous_salary ? Number(h.previous_salary) : '', new_salary: Number(h.salary_amount), reason: h.change_reason || '',
   }))
 
   return (
@@ -256,12 +227,9 @@ export default function EmployeesPage() {
                   { header: 'Name', key: 'name' }, { header: 'Code', key: 'code' },
                   { header: 'Designation', key: 'designation' }, { header: 'Department', key: 'department' },
                   { header: 'Phone', key: 'phone' }, { header: 'CNIC', key: 'cnic' },
-                  { header: 'Salary (PKR)', key: 'salary' }, { header: 'Join Date', key: 'join_date' },
-                  { header: 'Status', key: 'status' },
+                  { header: 'Salary (PKR)', key: 'salary' }, { header: 'Join Date', key: 'join_date' }, { header: 'Status', key: 'status' },
                 ]}
-                rows={exportRows}
-                filename="farmerp360-employees"
-                title="Employees"
+                rows={exportRows} filename="farmerp360-employees" title="Employees"
               />
               <button onClick={openAddEmp} className="btn-primary">+ Add Employee</button>
             </>
@@ -272,12 +240,9 @@ export default function EmployeesPage() {
                 { header: 'Employee', key: 'employee' }, { header: 'Code', key: 'code' },
                 { header: 'Effective Date', key: 'effective_date' },
                 { header: 'Previous Salary (PKR)', key: 'previous_salary' },
-                { header: 'New Salary (PKR)', key: 'new_salary' },
-                { header: 'Reason', key: 'reason' },
+                { header: 'New Salary (PKR)', key: 'new_salary' }, { header: 'Reason', key: 'reason' },
               ]}
-              rows={salaryExportRows}
-              filename="farmerp360-salary-history"
-              title="Salary History"
+              rows={salaryExportRows} filename="farmerp360-salary-history" title="Salary History"
             />
           )}
           {tab === 'Monthly Payroll' && (
@@ -299,7 +264,7 @@ export default function EmployeesPage() {
       {/* ── EMPLOYEES TAB ──────────────────────────────────────────── */}
       {tab === 'Employees' && (
         <>
-          {/* Filters */}
+          {/* Filters + View Toggle */}
           <div className="card p-4 mb-5">
             <div className="flex flex-wrap items-end gap-3">
               <div>
@@ -321,62 +286,130 @@ export default function EmployeesPage() {
                   <option value="inactive">Inactive</option>
                 </select>
               </div>
-              {hasFilter && (
-                <button onClick={() => { setSearch(''); setDepartment(''); setEmpStatus('') }} className="btn-secondary">✕ Clear</button>
-              )}
+              {hasFilter && <button onClick={() => { setSearch(''); setDepartment(''); setEmpStatus('') }} className="btn-secondary">✕ Clear</button>}
+              <div className="ml-auto flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                <button onClick={() => setViewMode('card')}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === 'card' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  ⊞ Cards
+                </button>
+                <button onClick={() => setViewMode('list')}
+                  className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${viewMode === 'list' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+                  ☰ List
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Employee Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            {employees.map((e: any) => (
-              <div key={e.id} className="card p-5">
-                <div className="flex items-start gap-3">
-                  {e.photo_url ? (
-                    <img src={e.photo_url} alt={e.full_name}
-                      className="w-12 h-12 rounded-full object-cover border-2 border-green-100 flex-shrink-0" />
-                  ) : (
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-green-700 font-bold text-xl flex-shrink-0">
-                      {e.full_name[0]}
+          {/* ── CARD VIEW ── */}
+          {viewMode === 'card' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {employees.map((e: any) => (
+                <div key={e.id} className="card p-5 hover:shadow-md transition-shadow">
+                  <div className="flex items-start gap-3">
+                    <button onClick={() => setDetailEmp(e)} className="flex-shrink-0">
+                      <Avatar photoUrl={e.photo_url} name={e.full_name} size="md" />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <button onClick={() => setDetailEmp(e)} className="text-left hover:text-green-700 transition-colors">
+                        <h3 className="font-semibold text-gray-900 truncate">{e.full_name}</h3>
+                      </button>
+                      <p className="text-sm text-gray-500">{e.designation || 'No designation'}</p>
+                      <p className="text-xs text-gray-400">{e.department || '—'}</p>
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 truncate">{e.full_name}</h3>
-                    <p className="text-sm text-gray-500">{e.designation || 'No designation'}</p>
-                    <p className="text-xs text-gray-400">{e.department || '—'}</p>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${e.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {e.status}
+                    </span>
                   </div>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${e.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {e.status}
-                  </span>
+                  <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-2 gap-1.5 text-xs">
+                    <div className="text-gray-400">Emp Code</div>
+                    <div className="font-mono font-medium text-gray-700">{e.employee_code || '—'}</div>
+                    <div className="text-gray-400">Phone</div>
+                    <div className="text-gray-700">{e.phone || '—'}</div>
+                    <div className="text-gray-400">Join Date</div>
+                    <div className="text-gray-700">{e.join_date || '—'}</div>
+                    <div className="text-gray-400">Monthly Salary</div>
+                    <div className="font-semibold text-gray-900">{e.monthly_salary ? pkr(e.monthly_salary) : '—'}</div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
+                    <button onClick={() => setDetailEmp(e)}
+                      className="flex-1 text-xs text-center text-gray-600 hover:text-gray-800 font-medium py-1 rounded hover:bg-gray-50 transition-colors">
+                      View Details
+                    </button>
+                    <button onClick={() => openEditEmp(e)}
+                      className="flex-1 text-xs text-center text-blue-600 hover:text-blue-800 font-medium py-1 rounded hover:bg-blue-50 transition-colors">
+                      Edit
+                    </button>
+                    <button onClick={() => openRaise(e)}
+                      className="flex-1 text-xs text-center text-green-700 hover:text-green-800 font-medium py-1 rounded hover:bg-green-50 transition-colors">
+                      Add Raise
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-2 gap-1.5 text-xs">
-                  <div className="text-gray-400">Emp Code</div>
-                  <div className="font-mono font-medium text-gray-700">{e.employee_code || '—'}</div>
-                  <div className="text-gray-400">Phone</div>
-                  <div className="text-gray-700">{e.phone || '—'}</div>
-                  <div className="text-gray-400">Join Date</div>
-                  <div className="text-gray-700">{e.join_date || '—'}</div>
-                  <div className="text-gray-400">Monthly Salary</div>
-                  <div className="font-semibold text-gray-900">{e.monthly_salary ? pkr(e.monthly_salary) : '—'}</div>
+              ))}
+              {employees.length === 0 && (
+                <div className="col-span-3 card p-12 text-center text-gray-400">
+                  {hasFilter ? 'No employees match the filters.' : 'No employees yet. Click "+ Add Employee" to add one.'}
                 </div>
-                <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
-                  <button onClick={() => openEditEmp(e)}
-                    className="flex-1 text-xs text-center text-blue-600 hover:text-blue-800 font-medium py-1 rounded hover:bg-blue-50 transition-colors">
-                    Edit
-                  </button>
-                  <button onClick={() => openRaise(e)}
-                    className="flex-1 text-xs text-center text-green-700 hover:text-green-800 font-medium py-1 rounded hover:bg-green-50 transition-colors">
-                    Add Raise
-                  </button>
-                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── LIST VIEW ── */}
+          {viewMode === 'list' && (
+            <div className="card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {['Employee', 'Code', 'Department', 'Phone', 'CNIC', 'Salary', 'Join Date', 'Status', ''].map(h => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employees.map((e: any) => (
+                      <tr key={e.id} className="border-t border-gray-50 hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <Avatar photoUrl={e.photo_url} name={e.full_name} size="sm" />
+                            <div>
+                              <button onClick={() => setDetailEmp(e)} className="font-medium text-gray-900 hover:text-green-700 text-left">
+                                {e.full_name}
+                              </button>
+                              <div className="text-xs text-gray-400">{e.designation || '—'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{e.employee_code || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600">{e.department || '—'}</td>
+                        <td className="px-4 py-3 text-gray-600">{e.phone || '—'}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs font-mono">{e.cnic || '—'}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-900">{e.monthly_salary ? pkr(e.monthly_salary) : '—'}</td>
+                        <td className="px-4 py-3 text-gray-500 text-xs">{e.join_date || '—'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${e.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {e.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex gap-2 whitespace-nowrap">
+                            <button onClick={() => setDetailEmp(e)} className="text-xs text-gray-600 hover:underline">View</button>
+                            <button onClick={() => openEditEmp(e)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                            <button onClick={() => openRaise(e)} className="text-xs text-green-700 hover:underline">Raise</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {employees.length === 0 && (
+                      <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-gray-400">
+                        {hasFilter ? 'No employees match the filters.' : 'No employees yet.'}
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            ))}
-            {employees.length === 0 && (
-              <div className="col-span-3 card p-12 text-center text-gray-400">
-                {hasFilter ? 'No employees match the filters.' : 'No employees yet. Add one above.'}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </>
       )}
 
@@ -394,12 +427,9 @@ export default function EmployeesPage() {
                   ))}
                 </select>
               </div>
-              {salaryFilterEmp && (
-                <button className="btn-secondary text-sm" onClick={() => setSalaryFilterEmp('')}>✕ Clear</button>
-              )}
+              {salaryFilterEmp && <button className="btn-secondary text-sm" onClick={() => setSalaryFilterEmp('')}>✕ Clear</button>}
             </div>
           </div>
-
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -454,11 +484,10 @@ export default function EmployeesPage() {
           <div className="card p-4 bg-blue-50 border border-blue-100">
             <p className="text-sm text-blue-800 font-medium">HR Payroll Workflow</p>
             <p className="text-xs text-blue-600 mt-1">
-              1. Calculate payroll for the month → 2. Review employee breakdown → 3. Submit to Finance →
-              Finance approves and releases salary from the <strong>Accounting → Payroll</strong> page.
+              1. Calculate payroll → 2. Review breakdown → 3. Submit to Finance →
+              Finance approves and releases salary from <strong>Accounting → Payroll</strong>.
             </p>
           </div>
-
           <div className="card overflow-hidden">
             <div className="px-5 py-4 border-b">
               <h2 className="text-base font-semibold text-gray-800">Payroll Runs</h2>
@@ -472,17 +501,13 @@ export default function EmployeesPage() {
                 </tr>
               </thead>
               <tbody>
-                {payrollLoading && (
-                  <tr><td colSpan={5} className="text-center py-10 text-gray-400">Loading…</td></tr>
-                )}
+                {payrollLoading && <tr><td colSpan={5} className="text-center py-10 text-gray-400">Loading…</td></tr>}
                 {!payrollLoading && payrollRuns.length === 0 && (
-                  <tr><td colSpan={5} className="text-center py-10 text-gray-400">No payroll runs yet. Click "Calculate Payroll" to start.</td></tr>
+                  <tr><td colSpan={5} className="text-center py-10 text-gray-400">No payroll runs yet.</td></tr>
                 )}
                 {payrollRuns.map((run: any) => (
                   <tr key={run.id} className={`border-t border-gray-50 hover:bg-gray-50 ${selectedRunId === String(run.id) ? 'bg-blue-50' : ''}`}>
-                    <td className="px-4 py-3 font-semibold text-gray-800">
-                      {MONTH_NAMES[(Number(run.month) - 1) % 12]} {run.year}
-                    </td>
+                    <td className="px-4 py-3 font-semibold text-gray-800">{MONTH_NAMES[(Number(run.month) - 1) % 12]} {run.year}</td>
                     <td className="px-4 py-3 text-gray-600">{run.employee_count ?? '—'}</td>
                     <td className="px-4 py-3 font-semibold text-gray-900">{pkr(run.total_net)}</td>
                     <td className="px-4 py-3">
@@ -497,22 +522,15 @@ export default function EmployeesPage() {
                           {selectedRunId === String(run.id) ? 'Hide' : 'View'}
                         </button>
                         {run.status === 'draft' && (
-                          <button
-                            disabled={submitPayrollMutation.isPending}
+                          <button disabled={submitPayrollMutation.isPending}
                             onClick={() => submitPayrollMutation.mutate(String(run.id))}
                             className="text-xs bg-blue-600 text-white px-2.5 py-1 rounded hover:bg-blue-700 disabled:opacity-50 font-medium">
                             Submit to Finance
                           </button>
                         )}
-                        {run.status === 'submitted' && (
-                          <span className="text-xs text-blue-600 italic">Awaiting Finance approval</span>
-                        )}
-                        {run.status === 'processed' && (
-                          <span className="text-xs text-amber-600 italic">Approved — Finance to release</span>
-                        )}
-                        {run.status === 'paid' && (
-                          <span className="text-xs text-green-600 font-medium">✓ Paid</span>
-                        )}
+                        {run.status === 'submitted' && <span className="text-xs text-blue-600 italic">Awaiting Finance approval</span>}
+                        {run.status === 'processed' && <span className="text-xs text-amber-600 italic">Approved — Finance to release</span>}
+                        {run.status === 'paid' && <span className="text-xs text-green-600 font-medium">✓ Paid</span>}
                       </div>
                     </td>
                   </tr>
@@ -520,17 +538,13 @@ export default function EmployeesPage() {
               </tbody>
             </table>
           </div>
-
-          {/* Run detail */}
           {selectedRunId && (
             <div className="card overflow-hidden">
               <div className="px-5 py-4 border-b flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-800">Employee Breakdown</h3>
                 <button onClick={() => setSelectedRunId(null)} className="text-gray-400 text-xl leading-none">✕</button>
               </div>
-              {detailLoading ? (
-                <p className="text-center py-8 text-gray-400">Loading…</p>
-              ) : (
+              {detailLoading ? <p className="text-center py-8 text-gray-400">Loading…</p> : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50">
@@ -545,7 +559,7 @@ export default function EmployeesPage() {
                         <tr key={rec.id ?? i} className="border-t border-gray-50">
                           <td className="px-4 py-2 font-medium text-gray-800">{rec.employee_name ?? `Employee ${i+1}`}</td>
                           <td className="px-4 py-2 text-gray-600">{pkr(rec.basic_salary)}</td>
-                          <td className="px-4 py-2 text-center text-gray-600">{rec.days_present ?? '—'}</td>
+                          <td className="px-4 py-2 text-center text-gray-600">{rec.days_present ?? '—'}/{rec.working_days}</td>
                           <td className="px-4 py-2">{pkr(rec.gross_salary)}</td>
                           <td className="px-4 py-2 text-red-600">{pkr(rec.deductions)}</td>
                           <td className="px-4 py-2 font-semibold text-green-700">{pkr(rec.net_salary)}</td>
@@ -560,6 +574,88 @@ export default function EmployeesPage() {
         </div>
       )}
 
+      {/* ── DETAIL MODAL ───────────────────────────────────────────── */}
+      {detailEmp && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Employee Profile</h2>
+              <div className="flex gap-2">
+                <button onClick={() => { setDetailEmp(null); openEditEmp(detailEmp) }}
+                  className="btn-secondary text-sm">Edit</button>
+                <button onClick={() => { setDetailEmp(null); openRaise(detailEmp) }}
+                  className="btn-primary text-sm">Add Raise</button>
+                <button onClick={() => setDetailEmp(null)} className="text-gray-400 text-xl ml-2">✕</button>
+              </div>
+            </div>
+            <div className="p-6">
+              {/* Header with photo */}
+              <div className="flex items-center gap-5 mb-6">
+                <Avatar photoUrl={detailEmp.photo_url} name={detailEmp.full_name} size="lg" />
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">{detailEmp.full_name}</h3>
+                  <p className="text-gray-500">{detailEmp.designation || 'No designation'} {detailEmp.department ? `· ${detailEmp.department}` : ''}</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${detailEmp.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                      {detailEmp.status}
+                    </span>
+                    {detailEmp.employee_code && (
+                      <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{detailEmp.employee_code}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Info grid */}
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                {[
+                  { label: 'CNIC', value: detailEmp.cnic || '—' },
+                  { label: 'Phone', value: detailEmp.phone || '—' },
+                  { label: 'Join Date', value: detailEmp.join_date || '—' },
+                  { label: 'Monthly Salary', value: detailEmp.monthly_salary ? pkr(detailEmp.monthly_salary) : '—', highlight: true },
+                  { label: 'Address', value: detailEmp.address || '—', full: true },
+                ].map(({ label, value, highlight, full }) => (
+                  <div key={label} className={`bg-gray-50 rounded-lg p-3 ${full ? 'col-span-2' : ''}`}>
+                    <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                    <p className={`text-sm font-medium ${highlight ? 'text-green-700' : 'text-gray-800'}`}>{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Salary history */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Salary History</h4>
+                {detailSalaryHistory.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic">No salary records yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {detailSalaryHistory.map((h: any) => {
+                      const prev = h.previous_salary ? Number(h.previous_salary) : null
+                      const curr = Number(h.salary_amount)
+                      const diff = prev !== null ? curr - prev : null
+                      return (
+                        <div key={h.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5">
+                          <div>
+                            <span className="text-sm font-semibold text-gray-900">{pkr(curr)}</span>
+                            {prev !== null && <span className="text-xs text-gray-400 ml-2">was {pkr(prev)}</span>}
+                            <div className="text-xs text-gray-400 mt-0.5">{h.change_reason || 'Salary change'} · {h.effective_date}</div>
+                          </div>
+                          {diff !== null && (
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${diff >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {diff >= 0 ? '+' : ''}{pkr(diff)}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── ADD/EDIT EMPLOYEE MODAL ────────────────────────────────── */}
       {showEmpModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -571,9 +667,7 @@ export default function EmployeesPage() {
             <form onSubmit={submitEmpForm} className="p-5 space-y-4">
               {/* Photo upload */}
               <div>
-                <label className="label">
-                  Employee Photo {!editingEmp && <span className="text-red-500">*</span>}
-                </label>
+                <label className="label">Employee Photo {!editingEmp && <span className="text-red-500">*</span>}</label>
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center flex-shrink-0">
                     {photoPreview ? (
@@ -584,20 +678,14 @@ export default function EmployeesPage() {
                   </div>
                   <div>
                     <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
-                    <button type="button" onClick={() => photoInputRef.current?.click()}
-                      className="btn-secondary text-sm">
+                    <button type="button" onClick={() => photoInputRef.current?.click()} className="btn-secondary text-sm">
                       {photoPreview ? 'Change Photo' : 'Upload Photo'}
                     </button>
-                    {!editingEmp && !photoFile && (
-                      <p className="text-xs text-red-500 mt-1">Photo is required</p>
-                    )}
-                    {photoFile && (
-                      <p className="text-xs text-green-600 mt-1">✓ {photoFile.name}</p>
-                    )}
+                    {!editingEmp && !photoFile && <p className="text-xs text-red-500 mt-1">Photo is required</p>}
+                    {photoFile && <p className="text-xs text-green-600 mt-1">✓ {photoFile.name}</p>}
                   </div>
                 </div>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="label">Full Name <span className="text-red-500">*</span></label>
@@ -634,13 +722,14 @@ export default function EmployeesPage() {
                   <label className="label">Monthly Salary (PKR)</label>
                   <input type="number" className="input" value={empForm.monthly_salary} onChange={e => setEmpForm({ ...empForm, monthly_salary: e.target.value })} placeholder="0" />
                 </div>
+                <div className="col-span-2">
+                  <label className="label">Address</label>
+                  <input className="input" value={empForm.address} onChange={e => setEmpForm({ ...empForm, address: e.target.value })} placeholder="Home address" />
+                </div>
               </div>
-
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={closeEmpModal} className="btn-secondary">Cancel</button>
-                <button type="submit"
-                  disabled={createEmpMutation.isPending || updateEmpMutation.isPending}
-                  className="btn-primary">
+                <button type="submit" disabled={createEmpMutation.isPending || updateEmpMutation.isPending} className="btn-primary">
                   {(createEmpMutation.isPending || updateEmpMutation.isPending) ? 'Saving...' : (editingEmp ? 'Update' : 'Add Employee')}
                 </button>
               </div>
@@ -662,53 +751,35 @@ export default function EmployeesPage() {
             </div>
             <form onSubmit={e => {
               e.preventDefault()
-              addSalaryMutation.mutate({
-                empId: salaryEmp.id,
-                data: {
-                  salary_amount: parseFloat(salaryForm.salary_amount),
-                  effective_date: salaryForm.effective_date,
-                  change_reason: salaryForm.change_reason || undefined,
-                  notes: salaryForm.notes || undefined,
-                },
-              })
+              addSalaryMutation.mutate({ empId: salaryEmp.id, data: { salary_amount: parseFloat(salaryForm.salary_amount), effective_date: salaryForm.effective_date, change_reason: salaryForm.change_reason || undefined, notes: salaryForm.notes || undefined } })
             }} className="p-5 space-y-4">
               <div className="bg-gray-50 rounded-lg p-3 text-sm">
                 <span className="text-gray-500">Current Salary: </span>
-                <span className="font-semibold text-gray-900">
-                  {salaryEmp.monthly_salary ? pkr(salaryEmp.monthly_salary) : 'Not set'}
-                </span>
+                <span className="font-semibold text-gray-900">{salaryEmp.monthly_salary ? pkr(salaryEmp.monthly_salary) : 'Not set'}</span>
               </div>
-
               <div>
                 <label className="label">New Salary (PKR) <span className="text-red-500">*</span></label>
-                <input type="number" required className="input" value={salaryForm.salary_amount}
-                  onChange={e => setSalaryForm({ ...salaryForm, salary_amount: e.target.value })} placeholder="0" />
+                <input type="number" required className="input" value={salaryForm.salary_amount} onChange={e => setSalaryForm({ ...salaryForm, salary_amount: e.target.value })} placeholder="0" />
               </div>
               <div>
                 <label className="label">Effective Date <span className="text-red-500">*</span></label>
-                <input type="date" required className="input" value={salaryForm.effective_date}
-                  onChange={e => setSalaryForm({ ...salaryForm, effective_date: e.target.value })} />
+                <input type="date" required className="input" value={salaryForm.effective_date} onChange={e => setSalaryForm({ ...salaryForm, effective_date: e.target.value })} />
               </div>
               <div>
                 <label className="label">Reason</label>
-                <select className="input" value={salaryForm.change_reason}
-                  onChange={e => setSalaryForm({ ...salaryForm, change_reason: e.target.value })}>
+                <select className="input" value={salaryForm.change_reason} onChange={e => setSalaryForm({ ...salaryForm, change_reason: e.target.value })}>
                   {CHANGE_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                 </select>
               </div>
               <div>
                 <label className="label">Notes</label>
-                <textarea className="input resize-none" rows={2} value={salaryForm.notes}
-                  onChange={e => setSalaryForm({ ...salaryForm, notes: e.target.value })} />
+                <textarea className="input resize-none" rows={2} value={salaryForm.notes} onChange={e => setSalaryForm({ ...salaryForm, notes: e.target.value })} />
               </div>
-
               {salaryForm.salary_amount && salaryEmp.monthly_salary && (
                 <div className={`text-sm font-medium p-2 rounded ${Number(salaryForm.salary_amount) >= Number(salaryEmp.monthly_salary) ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                  {Number(salaryForm.salary_amount) >= Number(salaryEmp.monthly_salary) ? '↑' : '↓'} Change:{' '}
-                  {pkr(Number(salaryForm.salary_amount) - Number(salaryEmp.monthly_salary))}
+                  {Number(salaryForm.salary_amount) >= Number(salaryEmp.monthly_salary) ? '↑' : '↓'} Change: {pkr(Number(salaryForm.salary_amount) - Number(salaryEmp.monthly_salary))}
                 </div>
               )}
-
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowSalaryModal(false)} className="btn-secondary">Cancel</button>
                 <button type="submit" disabled={addSalaryMutation.isPending} className="btn-primary">
@@ -740,17 +811,13 @@ export default function EmployeesPage() {
               </div>
               <div>
                 <label className="label">Year <span className="text-red-500">*</span></label>
-                <input type="number" className="input" required min={2020} max={2099} value={payrollForm.year}
-                  onChange={e => setPayrollForm({ ...payrollForm, year: Number(e.target.value) })} />
+                <input type="number" className="input" required min={2020} max={2099} value={payrollForm.year} onChange={e => setPayrollForm({ ...payrollForm, year: Number(e.target.value) })} />
               </div>
               <div>
                 <label className="label">Notes</label>
-                <textarea className="input resize-none" rows={2} value={payrollForm.notes}
-                  onChange={e => setPayrollForm({ ...payrollForm, notes: e.target.value })} />
+                <textarea className="input resize-none" rows={2} value={payrollForm.notes} onChange={e => setPayrollForm({ ...payrollForm, notes: e.target.value })} />
               </div>
-              <p className="text-xs text-gray-500">
-                Calculates gross pay for all active employees based on attendance records for the selected month. Saved as <strong>Draft</strong> — you can review and then submit to Finance.
-              </p>
+              <p className="text-xs text-gray-500">Calculates salary for all active employees based on attendance. Saved as <strong>Draft</strong> until you submit to Finance.</p>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowPayrollModal(false)} className="btn-secondary">Cancel</button>
                 <button type="submit" disabled={createPayrollMutation.isPending} className="btn-primary">
