@@ -146,6 +146,7 @@ export const employeesAPI = {
   get: (id: string) => api.get(`/employees/${id}`),
   create: (data: object) => api.post('/employees', data),
   update: (id: string, data: object) => api.put(`/employees/${id}`, data),
+  delete: (id: string) => api.delete(`/employees/${id}`),
   uploadPhoto: (id: string, file: File) => {
     const form = new FormData()
     form.append('file', file)

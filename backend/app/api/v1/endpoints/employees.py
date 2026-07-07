@@ -112,6 +112,21 @@ def update_employee(emp_id: str, payload: dict, db: Session = Depends(get_db), c
     return {"success": True, "data": EmployeeOut.from_orm(e)}
 
 
+@emp_router.delete("/{emp_id}")
+def delete_employee(
+    emp_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(UserRole.SUPER_ADMIN, UserRole.OWNER)),
+):
+    e = db.query(Employee).filter(Employee.id == emp_id, Employee.organization_id == get_org(current_user)).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    from app.models.models import EmploymentStatus
+    e.status = EmploymentStatus.TERMINATED
+    db.commit()
+    return {"success": True, "message": "Employee terminated"}
+
+
 @emp_router.post("/{emp_id}/photo")
 async def upload_employee_photo(
     emp_id: str,
