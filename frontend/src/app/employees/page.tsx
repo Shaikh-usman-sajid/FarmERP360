@@ -3,6 +3,7 @@ import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { employeesAPI, accountingAPI } from '@/lib/api'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import { useAuthStore, isAdmin } from '@/store/authStore'
 import toast from 'react-hot-toast'
 import ExportButtons from '@/components/ui/ExportButtons'
 
@@ -41,6 +42,8 @@ function Avatar({ photoUrl, name, size = 'md' }: { photoUrl?: string | null; nam
 
 export default function EmployeesPage() {
   const qc = useQueryClient()
+  const { user } = useAuthStore()
+  const userIsAdmin = isAdmin(user?.role ?? '')
   const [tab, setTab] = useState<Tab>('Employees')
   const [viewMode, setViewMode] = useState<ViewMode>('card')
 
@@ -130,6 +133,16 @@ export default function EmployeesPage() {
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['employees'] }); toast.success('Employee updated!'); closeEmpModal() },
     onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
+  })
+
+  const deleteEmpMutation = useMutation({
+    mutationFn: (id: string) => employeesAPI.delete(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['employees'] })
+      toast.success('Employee terminated')
+      setDetailEmp(null)
+    },
+    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed to delete'),
   })
 
   const addSalaryMutation = useMutation({
@@ -336,7 +349,7 @@ export default function EmployeesPage() {
                   <div className="mt-3 pt-3 border-t border-gray-100 flex gap-2">
                     <button onClick={() => setDetailEmp(e)}
                       className="flex-1 text-xs text-center text-gray-600 hover:text-gray-800 font-medium py-1 rounded hover:bg-gray-50 transition-colors">
-                      View Details
+                      View
                     </button>
                     <button onClick={() => openEditEmp(e)}
                       className="flex-1 text-xs text-center text-blue-600 hover:text-blue-800 font-medium py-1 rounded hover:bg-blue-50 transition-colors">
@@ -344,8 +357,15 @@ export default function EmployeesPage() {
                     </button>
                     <button onClick={() => openRaise(e)}
                       className="flex-1 text-xs text-center text-green-700 hover:text-green-800 font-medium py-1 rounded hover:bg-green-50 transition-colors">
-                      Add Raise
+                      Raise
                     </button>
+                    {userIsAdmin && (
+                      <button
+                        onClick={() => { if (confirm(`Terminate ${e.full_name}? This will set their status to Terminated.`)) deleteEmpMutation.mutate(e.id) }}
+                        className="flex-1 text-xs text-center text-red-600 hover:text-red-800 font-medium py-1 rounded hover:bg-red-50 transition-colors">
+                        Delete
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -399,6 +419,13 @@ export default function EmployeesPage() {
                             <button onClick={() => setDetailEmp(e)} className="text-xs text-gray-600 hover:underline">View</button>
                             <button onClick={() => openEditEmp(e)} className="text-xs text-blue-600 hover:underline">Edit</button>
                             <button onClick={() => openRaise(e)} className="text-xs text-green-700 hover:underline">Raise</button>
+                            {userIsAdmin && (
+                              <button
+                                onClick={() => { if (confirm(`Terminate ${e.full_name}? This will set their status to Terminated.`)) deleteEmpMutation.mutate(e.id) }}
+                                className="text-xs text-red-600 hover:underline">
+                                Delete
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -588,6 +615,13 @@ export default function EmployeesPage() {
                   className="btn-secondary text-sm">Edit</button>
                 <button onClick={() => { setDetailEmp(null); openRaise(detailEmp) }}
                   className="btn-primary text-sm">Add Raise</button>
+                {userIsAdmin && (
+                  <button
+                    onClick={() => { if (confirm(`Terminate ${detailEmp.full_name}? This will set their status to Terminated.`)) { setDetailEmp(null); deleteEmpMutation.mutate(detailEmp.id) } }}
+                    className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
+                    Terminate
+                  </button>
+                )}
                 <button onClick={() => setDetailEmp(null)} className="text-gray-400 text-xl ml-2">✕</button>
               </div>
             </div>
