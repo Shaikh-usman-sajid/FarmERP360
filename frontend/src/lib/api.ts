@@ -363,6 +363,7 @@ export const dashboardAPI = {
   investor: () => api.get('/dashboard/investor'),
   notifications: () => api.get('/notifications'),
   markRead: (id: string) => api.put(`/notifications/${id}/read`),
+  markAllRead: () => api.put('/notifications/mark-all-read'),
   animalReport: () => api.get('/reports/animals'),
   milkReport: (params?: object) => api.get('/reports/milk', { params }),
 }

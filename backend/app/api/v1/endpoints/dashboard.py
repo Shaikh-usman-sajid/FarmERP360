@@ -241,6 +241,16 @@ def mark_read(notif_id: str, db: Session = Depends(get_db), current_user: User =
     return {"success": True}
 
 
+@router.put("/notifications/mark-all-read")
+def mark_all_read(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    db.query(Notification).filter(
+        Notification.user_id == current_user.id,
+        Notification.is_read == False,
+    ).update({"is_read": True})
+    db.commit()
+    return {"success": True}
+
+
 @router.get("/reports/animals")
 def animal_report(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     org_id = get_org(current_user)
