@@ -283,8 +283,8 @@ def import_animals(
 
 @router.get("/{animal_id}/photos")
 def get_photos(animal_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    photos = db.query(AnimalPhoto).filter(AnimalPhoto.animal_id == animal_id).all()
-    return {"success": True, "data": [{"id": p.id, "photo_url": p.photo_url, "is_primary": p.is_primary, "caption": p.caption} for p in photos]}
+    photos = db.query(AnimalPhoto).filter(AnimalPhoto.animal_id == animal_id).order_by(AnimalPhoto.created_at.desc()).all()
+    return {"success": True, "data": [{"id": p.id, "photo_url": p.photo_url, "is_primary": p.is_primary, "caption": p.caption, "uploaded_at": p.created_at.isoformat() if p.created_at else None} for p in photos]}
 
 
 @router.post("/{animal_id}/photos")
