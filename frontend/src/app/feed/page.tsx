@@ -51,7 +51,7 @@ export default function FeedPage() {
     queryFn: () => feedAPI.listConsumption({ feed_type_id: conFeedTypeId || undefined, species: conSpecies || undefined, session: conSession || undefined, date_from: conDateFrom || undefined, date_to: conDateTo || undefined }).then(r => r.data.data),
     enabled: tab === 'Consumption Log',
   })
-  const animals = useQuery({ queryKey: ['animals'], queryFn: () => animalsAPI.list({ status: 'active' }).then(r => r.data.data), enabled: tab === 'Record Consumption' })
+  const animals = useQuery({ queryKey: ['animals'], queryFn: () => animalsAPI.list({ status: 'active' }).then(r => r.data.data.items), enabled: tab === 'Record Consumption' })
 
   // ─── Feed Type form ────────────────────────────────────────
   const [ftForm, setFtForm] = useState({ name: '', unit: 'kg', min_stock_level: '', cost_per_unit: '', suitable_for: '', description: '', inventory_product_id: '' })
