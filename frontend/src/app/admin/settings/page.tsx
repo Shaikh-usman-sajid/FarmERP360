@@ -61,6 +61,8 @@ export default function AdminSettingsPage() {
   const [alertMsg, setAlertMsg] = useState('')
   const [testEmailAddr, setTestEmailAddr] = useState('')
   const [testEmailMsg, setTestEmailMsg] = useState('')
+  const [emailAlertAddrs, setEmailAlertAddrs] = useState('')
+  const [emailAlertMsg, setEmailAlertMsg] = useState('')
   const [auditFilter, setAuditFilter] = useState({ module: '', action: '', page: 1 })
 
   const { data: settingsData, isLoading } = useQuery({
@@ -111,6 +113,12 @@ export default function AdminSettingsPage() {
     mutationFn: (recipients: string[]) => adminAPI.sendAlerts({ recipients }),
     onSuccess: (r) => setAlertMsg(`✅ Sent to ${r.data.data.sent} recipient(s)`),
     onError: (e: any) => setAlertMsg('❌ ' + (e.response?.data?.detail || 'Failed')),
+  })
+
+  const emailAlertsMutation = useMutation({
+    mutationFn: (emails: string[]) => adminAPI.sendEmailAlerts({ emails }),
+    onSuccess: (r) => setEmailAlertMsg(`✅ Sent to ${r.data.data.sent} recipient(s)${r.data.data.failed ? ` (${r.data.data.failed} failed)` : ''}`),
+    onError: (e: any) => setEmailAlertMsg('❌ ' + (e.response?.data?.detail || 'Failed')),
   })
 
   const onChange = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: v }))
@@ -343,7 +351,7 @@ export default function AdminSettingsPage() {
                         <Toggle label="Use STARTTLS (recommended for port 587)" name="smtp_use_tls" value={form.smtp_use_tls || 'true'} onChange={onChange}
                           description="Disable only if using SSL on port 465" />
                       </div>
-                      <div className="flex gap-2 mt-2 items-end">
+                      <div className="flex flex-col sm:flex-row gap-3 mt-2">
                         <div className="flex-1">
                           <label className="block text-xs font-medium mb-1" style={{ color: '#6b7280' }}>Send Test Email To</label>
                           <div className="flex gap-2">
@@ -357,6 +365,25 @@ export default function AdminSettingsPage() {
                             </button>
                           </div>
                           {testEmailMsg && <div className="text-xs mt-1" style={{ color: testEmailMsg.startsWith('✅') ? '#16a34a' : '#dc2626' }}>{testEmailMsg}</div>}
+                        </div>
+                        <div className="flex-1">
+                          <label className="block text-xs font-medium mb-1" style={{ color: '#6b7280' }}>Send Farm Alerts To (comma-separated emails)</label>
+                          <div className="flex gap-2">
+                            <input value={emailAlertAddrs} onChange={e => setEmailAlertAddrs(e.target.value)}
+                              placeholder="owner@farm.com,manager@farm.com" className="flex-1 px-3 py-2 border rounded-lg text-sm" style={{ borderColor: '#d1d5db' }} />
+                            <button
+                              onClick={() => {
+                                const emails = emailAlertAddrs.split(',').map(s => s.trim()).filter(Boolean)
+                                setEmailAlertMsg('')
+                                emailAlertsMutation.mutate(emails)
+                              }}
+                              disabled={!emailAlertAddrs.trim() || emailAlertsMutation.isPending}
+                              className="px-4 py-2 rounded-lg text-sm font-medium text-white whitespace-nowrap"
+                              style={{ backgroundColor: BRAND.gold, color: BRAND.dark }}>
+                              {emailAlertsMutation.isPending ? '…' : 'Send Alerts'}
+                            </button>
+                          </div>
+                          {emailAlertMsg && <div className="text-xs mt-1" style={{ color: emailAlertMsg.startsWith('✅') ? '#16a34a' : '#dc2626' }}>{emailAlertMsg}</div>}
                         </div>
                       </div>
                     </div>

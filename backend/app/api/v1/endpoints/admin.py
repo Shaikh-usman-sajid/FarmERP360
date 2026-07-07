@@ -498,6 +498,95 @@ async def test_email(
         raise HTTPException(500, f"Email send failed: {str(e)}")
 
 
+@router.post("/admin/notifications/email/alerts")
+async def send_email_alerts(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["super_admin", "owner"])),
+):
+    org_id = _org(current_user)
+    emails: list = payload.get("emails", [])
+    if not emails:
+        raise HTTPException(400, "At least one recipient email required.")
+
+    smtp_enabled = _get_setting(db, org_id, "smtp_enabled") == "true"
+    oauth_enabled = _get_setting(db, org_id, "smtp_oauth_enabled") == "true"
+    if not smtp_enabled and not oauth_enabled:
+        raise HTTPException(400, "No email method enabled. Enable SMTP or OAuth2 in Admin → Integrations.")
+
+    org_name = _get_setting(db, org_id, "org_name") or "FarmERP360"
+    today = datetime.utcnow().date()
+    threshold_days = int(_get_setting(db, org_id, "low_stock_alert_days") or "7")
+
+    overdue_vax = db.query(Vaccination).filter(
+        Vaccination.organization_id == org_id,
+        Vaccination.next_due_date < today,
+    ).count()
+    overdue_inv = db.query(Invoice).filter(
+        Invoice.organization_id == org_id,
+        Invoice.status == InvoiceStatus.OVERDUE,
+    ).count()
+    low_feed = db.query(FeedType).filter(
+        FeedType.organization_id == org_id,
+        FeedType.current_stock_kg <= FeedType.min_stock_kg,
+    ).count()
+
+    alert_rows = ""
+    if overdue_vax:
+        alert_rows += f"<tr><td style='padding:6px 10px'>⚠️ Overdue Vaccinations</td><td style='padding:6px 10px;font-weight:bold;color:#dc2626'>{overdue_vax}</td></tr>"
+    if overdue_inv:
+        alert_rows += f"<tr><td style='padding:6px 10px'>💰 Overdue Invoices</td><td style='padding:6px 10px;font-weight:bold;color:#dc2626'>{overdue_inv}</td></tr>"
+    if low_feed:
+        alert_rows += f"<tr><td style='padding:6px 10px'>🌿 Low Feed Stock</td><td style='padding:6px 10px;font-weight:bold;color:#d97706'>{low_feed}</td></tr>"
+
+    if not alert_rows:
+        alert_rows = "<tr><td colspan='2' style='padding:6px 10px;color:#16a34a'>✅ No pending alerts — all clear!</td></tr>"
+
+    html = (
+        f"<div style='font-family:sans-serif;max-width:600px'>"
+        f"<h2 style='color:#1B4332'>Farm Alert Summary — {org_name}</h2>"
+        f"<p style='color:#4b5563'>Generated on {today}</p>"
+        f"<table border='1' cellpadding='0' cellspacing='0' style='border-collapse:collapse;width:100%;border-color:#e5e7eb'>"
+        f"<thead><tr style='background:#f3f4f6'>"
+        f"<th style='padding:8px 10px;text-align:left'>Alert</th>"
+        f"<th style='padding:8px 10px;text-align:left'>Count</th>"
+        f"</tr></thead><tbody>{alert_rows}</tbody></table>"
+        f"<p style='margin-top:16px;color:#6b7280;font-size:12px'>Sent by FarmERP360 — {org_name}</p>"
+        f"</div>"
+    )
+    subject = f"Farm Alert Summary — {org_name} ({today})"
+
+    sent, failed, errors = 0, 0, []
+    for email in emails:
+        try:
+            if oauth_enabled:
+                await _send_email_oauth2(
+                    _get_setting(db, org_id, "smtp_oauth_client_id") or "",
+                    _get_setting(db, org_id, "smtp_oauth_client_secret") or "",
+                    _get_setting(db, org_id, "smtp_oauth_tenant_id") or "",
+                    _get_setting(db, org_id, "smtp_oauth_refresh_token") or "",
+                    _get_setting(db, org_id, "smtp_oauth_from_email") or "",
+                    email, subject, html,
+                )
+            else:
+                _send_email_smtp(
+                    _get_setting(db, org_id, "smtp_host") or "",
+                    int(_get_setting(db, org_id, "smtp_port") or "587"),
+                    _get_setting(db, org_id, "smtp_username") or "",
+                    _get_setting(db, org_id, "smtp_password") or "",
+                    _get_setting(db, org_id, "smtp_from_email") or "",
+                    _get_setting(db, org_id, "smtp_from_name") or "FarmERP360",
+                    _get_setting(db, org_id, "smtp_use_tls") != "false",
+                    email, subject, html,
+                )
+            sent += 1
+        except Exception as e:
+            failed += 1
+            errors.append(f"{email}: {str(e)}")
+
+    return {"success": True, "data": {"sent": sent, "failed": failed, "errors": errors}}
+
+
 @router.post("/admin/pallai/billing/send")
 async def send_pallai_billing_notifications(
     payload: dict,

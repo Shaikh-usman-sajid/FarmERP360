@@ -340,6 +340,7 @@ export const adminAPI = {
   sendAlerts: (data: object) => api.post('/admin/notifications/alerts/send', data),
   testWhatsapp: (data: { to: string; message?: string }) => api.post('/admin/notifications/whatsapp/test', data),
   testEmail: (data: { to: string }) => api.post('/admin/notifications/email/test', data),
+  sendEmailAlerts: (data: { emails: string[] }) => api.post('/admin/notifications/email/alerts', data),
   getPaymentOptions: (invoiceId: string) => api.get(`/admin/payments/invoice/${invoiceId}`),
   getAnimalQrCode: (animalId: string, baseUrl?: string) =>
     api.get(`/animals/${animalId}/qrcode`, { params: { base_url: baseUrl }, responseType: 'blob' }),
