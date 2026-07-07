@@ -97,6 +97,8 @@ export const healthAPI = {
   deleteTreatment: (id: string) => api.delete(`/treatments/${id}`),
   listBreeding: (params?: object) => api.get('/breeding-records', { params }),
   createBreeding: (data: object) => api.post('/breeding-records', data),
+  updateBreeding: (id: string, data: object) => api.put(`/breeding-records/${id}`, data),
+  deleteBreeding: (id: string) => api.delete(`/breeding-records/${id}`),
 }
 
 export const dairyAPI = {

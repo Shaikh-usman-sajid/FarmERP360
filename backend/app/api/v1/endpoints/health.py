@@ -169,27 +169,71 @@ def delete_treatment(treat_id: str, db: Session = Depends(get_db), current_user:
 def list_breeding(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, le=100),
+    animal_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    from app.models.models import Animal
     query = db.query(BreedingRecord).filter(BreedingRecord.organization_id == get_org(current_user))
+    if animal_id:
+        query = query.filter(BreedingRecord.animal_id == animal_id)
     total = query.count()
-    items = query.offset((page-1)*per_page).limit(per_page).all()
-    return {"success": True, "data": {"total": total, "items": [
-        {"id": b.id, "animal_id": b.animal_id, "breeding_date": str(b.breeding_date), "expected_delivery": str(b.expected_delivery) if b.expected_delivery else None, "outcome": b.outcome}
-        for b in items
-    ]}}
+    items = query.order_by(BreedingRecord.breeding_date.desc()).offset((page-1)*per_page).limit(per_page).all()
+
+    def _out(b):
+        dam = db.query(Animal).filter(Animal.id == b.animal_id).first()
+        sire = db.query(Animal).filter(Animal.id == b.sire_id).first() if b.sire_id else None
+        return {
+            "id": b.id,
+            "animal_id": b.animal_id,
+            "animal_code": dam.animal_code if dam else None,
+            "animal_name": dam.name if dam else None,
+            "sire_id": b.sire_id,
+            "sire_code": sire.animal_code if sire else None,
+            "breeding_date": str(b.breeding_date),
+            "expected_delivery": str(b.expected_delivery) if b.expected_delivery else None,
+            "actual_delivery": str(b.actual_delivery) if b.actual_delivery else None,
+            "offspring_count": b.offspring_count,
+            "outcome": b.outcome,
+            "notes": b.notes,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+        }
+
+    return {"success": True, "data": {"total": total, "items": [_out(b) for b in items]}}
 
 
 @breed_router.post("")
 def create_breeding(payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    from app.models.models import BreedingRecord
-    from datetime import date
-    b = BreedingRecord(organization_id=get_org(current_user), **{k: v for k, v in payload.items() if v is not None})
+    allowed = ["animal_id", "sire_id", "breeding_date", "expected_delivery", "actual_delivery", "offspring_count", "outcome", "notes"]
+    data = {k: v for k, v in payload.items() if k in allowed and v not in (None, "")}
+    b = BreedingRecord(organization_id=get_org(current_user), **data)
     db.add(b)
     db.commit()
     db.refresh(b)
-    return {"success": True, "data": {"id": b.id, "animal_id": b.animal_id}}
+    return {"success": True, "data": {"id": b.id}}
+
+
+@breed_router.put("/{record_id}")
+def update_breeding(record_id: str, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    b = db.query(BreedingRecord).filter(BreedingRecord.id == record_id, BreedingRecord.organization_id == get_org(current_user)).first()
+    if not b:
+        raise HTTPException(status_code=404, detail="Record not found")
+    allowed = ["sire_id", "breeding_date", "expected_delivery", "actual_delivery", "offspring_count", "outcome", "notes"]
+    for k, v in payload.items():
+        if k in allowed:
+            setattr(b, k, v if v not in ("", None) else None)
+    db.commit()
+    return {"success": True}
+
+
+@breed_router.delete("/{record_id}")
+def delete_breeding(record_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    b = db.query(BreedingRecord).filter(BreedingRecord.id == record_id, BreedingRecord.organization_id == get_org(current_user)).first()
+    if not b:
+        raise HTTPException(status_code=404, detail="Record not found")
+    db.delete(b)
+    db.commit()
+    return {"success": True}
 
 
 router.include_router(vacc_router)

@@ -33,6 +33,7 @@ const navGroups: NavGroup[] = [
       { label: 'Weight Tracking', href: '/livestock/weight', icon: '⚖️', roles: ['super_admin', 'owner', 'farm_manager', 'employee', 'data_entry'] },
       { label: 'Vaccination', href: '/vaccination', icon: '💉', roles: ['super_admin', 'owner', 'farm_manager', 'vet_manager', 'employee'] },
       { label: 'Treatments', href: '/treatments', icon: '🩺', roles: ['super_admin', 'owner', 'farm_manager', 'vet_manager'] },
+      { label: 'Breeding', href: '/breeding', icon: '🐄', roles: ['super_admin', 'owner', 'farm_manager', 'vet_manager'] },
     ],
   },
   {
