@@ -105,6 +105,7 @@ const navGroups: NavGroup[] = [
       { label: 'Balance Sheet', href: '/accounting/balance-sheet', icon: '🏦', roles: ['super_admin', 'owner', 'accountant'] },
       { label: 'Cash Flow', href: '/accounting/cash-flow', icon: '💧', roles: ['super_admin', 'owner', 'accountant'] },
       { label: 'Receivables', href: '/accounting/receivables', icon: '💰', roles: ['super_admin', 'owner', 'accountant'] },
+      { label: 'Cost Centers', href: '/accounting/cost-centers', icon: '🏷️', roles: ['super_admin', 'owner', 'accountant'] },
     ],
   },
   {

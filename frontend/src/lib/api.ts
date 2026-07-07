@@ -269,6 +269,8 @@ export const accountingAPI = {
   // Cost Centers
   getCostCenters: () => api.get('/accounting/cost-centers'),
   createCostCenter: (data: object) => api.post('/accounting/cost-centers', data),
+  updateCostCenter: (id: string, data: object) => api.put(`/accounting/cost-centers/${id}`, data),
+  deleteCostCenter: (id: string) => api.delete(`/accounting/cost-centers/${id}`),
 
   // Reports
   getProfitLoss: (dateFrom: string, dateTo: string) => api.get('/accounting/reports/profit-loss', { params: { date_from: dateFrom, date_to: dateTo } }),

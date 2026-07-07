@@ -830,6 +830,39 @@ def create_cost_center(
     return cc
 
 
+@router.put("/cost-centers/{cc_id}", response_model=CostCenterOut)
+def update_cost_center(
+    cc_id: str,
+    data: CostCenterCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(ACCOUNTING_ROLES)),
+    org_id: str = Depends(get_org_id),
+):
+    cc = db.query(CostCenter).filter_by(id=cc_id, organization_id=org_id).first()
+    if not cc:
+        raise HTTPException(404, "Cost center not found")
+    for k, v in data.model_dump().items():
+        setattr(cc, k, v)
+    db.commit()
+    db.refresh(cc)
+    return cc
+
+
+@router.delete("/cost-centers/{cc_id}")
+def delete_cost_center(
+    cc_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(ACCOUNTING_ROLES)),
+    org_id: str = Depends(get_org_id),
+):
+    cc = db.query(CostCenter).filter_by(id=cc_id, organization_id=org_id).first()
+    if not cc:
+        raise HTTPException(404, "Cost center not found")
+    cc.is_active = False
+    db.commit()
+    return {"success": True}
+
+
 # ─────────────────────────────────────────────
 # FINANCIAL REPORTS
 # ─────────────────────────────────────────────
