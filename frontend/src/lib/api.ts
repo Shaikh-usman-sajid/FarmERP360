@@ -146,6 +146,14 @@ export const employeesAPI = {
   get: (id: string) => api.get(`/employees/${id}`),
   create: (data: object) => api.post('/employees', data),
   update: (id: string, data: object) => api.put(`/employees/${id}`, data),
+  uploadPhoto: (id: string, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return api.post(`/employees/${id}/photo`, form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  getSalaryHistory: (id: string) => api.get(`/employees/${id}/salary-history`),
+  addSalaryRecord: (id: string, data: object) => api.post(`/employees/${id}/salary`, data),
+  listAllSalaryHistory: (params?: object) => api.get('/employees/salary-history/all', { params }),
   listAttendance: (params?: object) => api.get('/attendance', { params }),
   markAttendance: (data: object) => api.post('/attendance', data),
 }
@@ -251,6 +259,9 @@ export const accountingAPI = {
   getPayrollRuns: (params?: object) => api.get('/accounting/payroll', { params }),
   processPayroll: (data: object) => api.post('/accounting/payroll', data),
   getPayrollRun: (id: string) => api.get(`/accounting/payroll/${id}`),
+  submitPayroll: (id: string) => api.post(`/accounting/payroll/${id}/submit`),
+  approvePayroll: (id: string) => api.post(`/accounting/payroll/${id}/approve`),
+  markPayrollPaid: (id: string) => api.post(`/accounting/payroll/${id}/mark-paid`),
 
   // Cost Centers
   getCostCenters: () => api.get('/accounting/cost-centers'),

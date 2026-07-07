@@ -457,8 +457,31 @@ class EmployeeOut(BaseModel):
     phone: Optional[str]
     designation: Optional[str]
     department: Optional[str]
+    join_date: Optional[date] = None
     monthly_salary: Optional[Decimal]
+    photo_url: Optional[str] = None
     status: EmploymentStatus
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SalaryHistoryCreate(BaseModel):
+    salary_amount: Decimal
+    effective_date: date
+    change_reason: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class SalaryHistoryOut(BaseModel):
+    id: str
+    employee_id: str
+    salary_amount: Decimal
+    previous_salary: Optional[Decimal] = None
+    effective_date: date
+    change_reason: Optional[str] = None
+    notes: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -913,6 +936,7 @@ class PayrollRunOut(BaseModel):
     total_deductions: Decimal
     total_net: Decimal
     status: PayrollStatus
+    employee_count: Optional[int] = None
     created_at: datetime
 
     class Config:

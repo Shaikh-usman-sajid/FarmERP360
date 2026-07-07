@@ -27,6 +27,7 @@ from app.schemas.schemas import (
 router = APIRouter(prefix="/accounting", tags=["accounting"])
 
 ACCOUNTING_ROLES = ["super_admin", "owner", "accountant"]
+PAYROLL_HR_ROLES = ["super_admin", "owner", "farm_manager", "accountant"]
 
 
 # ─────────────────────────────────────────────
@@ -580,19 +581,26 @@ def pay_bill(
 @router.get("/payroll", response_model=List[PayrollRunOut])
 def list_payroll_runs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(ACCOUNTING_ROLES)),
+    current_user: User = Depends(require_roles(PAYROLL_HR_ROLES)),
     org_id: str = Depends(get_org_id),
 ):
-    return db.query(PayrollRun).filter_by(organization_id=org_id).order_by(
+    runs = db.query(PayrollRun).filter_by(organization_id=org_id).order_by(
         PayrollRun.year.desc(), PayrollRun.month.desc()
     ).all()
+    result = []
+    for run in runs:
+        count = db.query(PayrollRecord).filter_by(payroll_run_id=run.id).count()
+        out = PayrollRunOut.from_orm(run)
+        out.employee_count = count
+        result.append(out)
+    return result
 
 
 @router.post("/payroll", response_model=PayrollRunDetailOut)
 def create_payroll_run(
     data: PayrollRunCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles(ACCOUNTING_ROLES)),
+    current_user: User = Depends(require_roles(PAYROLL_HR_ROLES)),
     org_id: str = Depends(get_org_id),
 ):
     existing = db.query(PayrollRun).filter_by(
@@ -611,6 +619,7 @@ def create_payroll_run(
         year=data.year,
         notes=data.notes,
         processed_by=current_user.id,
+        status=PayrollStatus.DRAFT,
     )
     db.add(run)
     db.flush()
@@ -621,7 +630,6 @@ def create_payroll_run(
 
     for emp in employees:
         basic = emp.monthly_salary or Decimal("0")
-        # Count attendance for this month
         days_present = db.query(AttendanceRecord).filter(
             AttendanceRecord.employee_id == emp.id,
             AttendanceRecord.status.in_([AttendanceStatus.PRESENT, AttendanceStatus.HALF_DAY]),
@@ -659,7 +667,6 @@ def create_payroll_run(
 
     run.total_gross = total_gross
     run.total_net = total_net
-    run.status = PayrollStatus.PROCESSED
     db.commit()
     db.refresh(run)
 
@@ -674,6 +681,88 @@ def create_payroll_run(
         created_at=run.created_at,
         records=records_out,
     )
+
+
+@router.post("/payroll/{run_id}/submit")
+def submit_payroll_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(PAYROLL_HR_ROLES)),
+    org_id: str = Depends(get_org_id),
+):
+    """HR submits calculated payroll to Finance for approval."""
+    run = db.query(PayrollRun).filter_by(id=run_id, organization_id=org_id).first()
+    if not run:
+        raise HTTPException(404, "Payroll run not found")
+    if run.status != PayrollStatus.DRAFT:
+        raise HTTPException(400, f"Cannot submit — payroll is already '{run.status.value}'")
+    run.status = PayrollStatus.SUBMITTED
+    run.submitted_by = current_user.id
+    db.commit()
+    return {"success": True, "message": "Payroll submitted to Finance for approval", "status": run.status.value}
+
+
+@router.post("/payroll/{run_id}/approve")
+def approve_payroll_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(ACCOUNTING_ROLES)),
+    org_id: str = Depends(get_org_id),
+):
+    """Finance approves the submitted payroll."""
+    run = db.query(PayrollRun).filter_by(id=run_id, organization_id=org_id).first()
+    if not run:
+        raise HTTPException(404, "Payroll run not found")
+    if run.status != PayrollStatus.SUBMITTED:
+        raise HTTPException(400, f"Cannot approve — payroll status is '{run.status.value}'. Must be 'submitted'.")
+    run.status = PayrollStatus.PROCESSED
+    db.commit()
+    return {"success": True, "message": "Payroll approved", "status": run.status.value}
+
+
+@router.post("/payroll/{run_id}/mark-paid")
+def mark_payroll_paid(
+    run_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(ACCOUNTING_ROLES)),
+    org_id: str = Depends(get_org_id),
+):
+    """Finance releases salary payment and records journal entry."""
+    run = db.query(PayrollRun).filter_by(id=run_id, organization_id=org_id).first()
+    if not run:
+        raise HTTPException(404, "Payroll run not found")
+    if run.status != PayrollStatus.PROCESSED:
+        raise HTTPException(400, f"Cannot mark paid — payroll status is '{run.status.value}'. Must be 'processed'.")
+
+    # Create journal entry: Dr Salaries & Wages (6000) / Cr Bank (1010)
+    salary_acct = db.query(ChartOfAccount).filter_by(organization_id=org_id, account_code="6000").first()
+    bank_acct = db.query(ChartOfAccount).filter_by(organization_id=org_id, account_code="1010").first()
+
+    if salary_acct and bank_acct and run.total_net and run.total_net > 0:
+        from calendar import month_name as _month_name
+        entry = JournalEntry(
+            organization_id=org_id,
+            entry_date=date.today(),
+            reference=f"PAYROLL-{run.year}-{run.month:02d}",
+            description=f"Salary payment — {_month_name[run.month]} {run.year} ({db.query(PayrollRecord).filter_by(payroll_run_id=run.id).count()} employees)",
+            status=JournalEntryStatus.POSTED,
+            created_by=current_user.id,
+        )
+        db.add(entry)
+        db.flush()
+        db.add(JournalEntryLine(
+            entry_id=entry.id, account_id=salary_acct.id,
+            debit_amount=run.total_net, credit_amount=Decimal("0"), description="Salaries & Wages",
+        ))
+        db.add(JournalEntryLine(
+            entry_id=entry.id, account_id=bank_acct.id,
+            debit_amount=Decimal("0"), credit_amount=run.total_net, description="Bank payment",
+        ))
+
+    run.status = PayrollStatus.PAID
+    run.paid_by = current_user.id
+    db.commit()
+    return {"success": True, "message": "Payroll marked as paid. Journal entry recorded.", "status": run.status.value}
 
 
 @router.get("/payroll/{run_id}", response_model=PayrollRunDetailOut)

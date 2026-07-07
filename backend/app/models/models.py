@@ -158,6 +158,7 @@ class VendorBillStatus(str, enum.Enum):
 
 class PayrollStatus(str, enum.Enum):
     DRAFT = "draft"
+    SUBMITTED = "submitted"
     PROCESSED = "processed"
     PAID = "paid"
 
@@ -577,11 +578,29 @@ class Employee(Base):
     department = Column(String(100))
     join_date = Column(Date)
     monthly_salary = Column(Numeric(12, 2))
+    photo_url = Column(String(500))
     status = Column(Enum(EmploymentStatus), default=EmploymentStatus.ACTIVE)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     attendance_records = relationship("AttendanceRecord", back_populates="employee")
+    salary_history = relationship("EmployeeSalaryHistory", back_populates="employee", cascade="all, delete-orphan")
+
+
+class EmployeeSalaryHistory(Base):
+    __tablename__ = "employee_salary_history"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    organization_id = Column(UUID(as_uuid=False), ForeignKey("organizations.id"), nullable=False, index=True)
+    employee_id = Column(UUID(as_uuid=False), ForeignKey("employees.id"), nullable=False, index=True)
+    salary_amount = Column(Numeric(12, 2), nullable=False)
+    previous_salary = Column(Numeric(12, 2))
+    effective_date = Column(Date, nullable=False)
+    change_reason = Column(String(200))
+    notes = Column(Text)
+    created_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    employee = relationship("Employee", back_populates="salary_history")
 
 
 class AttendanceRecord(Base):
@@ -972,6 +991,8 @@ class PayrollRun(Base):
     status = Column(Enum(PayrollStatus), default=PayrollStatus.DRAFT)
     notes = Column(Text)
     processed_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
+    submitted_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
+    paid_by = Column(UUID(as_uuid=False), ForeignKey("users.id"))
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

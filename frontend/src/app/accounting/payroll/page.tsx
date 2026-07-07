@@ -20,7 +20,8 @@ function pkr(amount: number | string) {
 
 const STATUS_BADGE: Record<string, string> = {
   draft: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700',
-  processed: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700',
+  submitted: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700',
+  processed: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700',
   paid: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700',
 }
 
@@ -64,6 +65,18 @@ export default function PayrollPage() {
       if (newId) setSelectedRunId(String(newId))
     },
     onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed to process payroll'),
+  })
+
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => accountingAPI.approvePayroll(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['payroll-runs'] }); toast.success('Payroll approved!') },
+    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
+  })
+
+  const markPaidMutation = useMutation({
+    mutationFn: (id: string) => accountingAPI.markPayrollPaid(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['payroll-runs'] }); toast.success('Payroll marked as paid. Journal entry recorded.') },
+    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
   })
 
   // ── Summary calculations ───────────────────────────────────────────────────
@@ -183,12 +196,35 @@ export default function PayrollPage() {
                 <td className="table-cell font-semibold">{pkr(run.total_net)}</td>
                 <td className="table-cell">{statusBadge(run.status ?? 'draft')}</td>
                 <td className="table-cell">
-                  <button
-                    onClick={() => setSelectedRunId(selectedRunId === String(run.id) ? null : String(run.id))}
-                    className="text-xs text-blue-600 hover:text-blue-800 font-medium underline underline-offset-2"
-                  >
-                    {selectedRunId === String(run.id) ? 'Hide' : 'View'}
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => setSelectedRunId(selectedRunId === String(run.id) ? null : String(run.id))}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium underline underline-offset-2"
+                    >
+                      {selectedRunId === String(run.id) ? 'Hide' : 'View'}
+                    </button>
+                    {run.status === 'submitted' && (
+                      <button
+                        disabled={approveMutation.isPending}
+                        onClick={() => { if (confirm('Approve this payroll run?')) approveMutation.mutate(String(run.id)) }}
+                        className="text-xs bg-amber-500 text-white px-2 py-0.5 rounded hover:bg-amber-600 disabled:opacity-50 font-medium"
+                      >
+                        Approve
+                      </button>
+                    )}
+                    {run.status === 'processed' && (
+                      <button
+                        disabled={markPaidMutation.isPending}
+                        onClick={() => { if (confirm('Mark as paid and record journal entry?')) markPaidMutation.mutate(String(run.id)) }}
+                        className="text-xs bg-green-600 text-white px-2 py-0.5 rounded hover:bg-green-700 disabled:opacity-50 font-medium"
+                      >
+                        Release &amp; Pay
+                      </button>
+                    )}
+                    {run.status === 'draft' && (
+                      <span className="text-xs text-gray-400 italic">Pending HR submission</span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
