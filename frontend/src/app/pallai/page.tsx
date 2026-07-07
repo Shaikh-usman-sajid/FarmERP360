@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { pallaiAPI, animalsAPI } from '@/lib/api'
+import toast from 'react-hot-toast'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import ExportButtons from '@/components/ui/ExportButtons'
 
@@ -28,6 +29,11 @@ export default function PallaiPage() {
   const { data: packages = [] } = useQuery({ queryKey: ['pallai-packages'], queryFn: () => pallaiAPI.listPackages().then(r => r.data.data) })
   const { data: subscriptions = [] } = useQuery({ queryKey: ['pallai-subscriptions'], queryFn: () => pallaiAPI.listSubscriptions().then(r => r.data.data) })
   const { data: animals = [] } = useQuery({ queryKey: ['animals-simple'], queryFn: () => animalsAPI.list().then(r => r.data.data?.items || r.data.data || []) })
+  const { data: billingStatus, refetch: refetchBilling } = useQuery({
+    queryKey: ['pallai-billing-status'],
+    queryFn: () => pallaiAPI.getBillingStatus().then(r => r.data.data),
+    enabled: activeTab === 'Billing',
+  })
 
   const addCustomer = useMutation({
     mutationFn: (data: object) => pallaiAPI.createCustomer(data),
@@ -43,7 +49,29 @@ export default function PallaiPage() {
   })
   const generateBilling = useMutation({
     mutationFn: (data: object) => pallaiAPI.generateBilling(data),
-    onSuccess: (res: any) => { alert(`Generated ${res.data.data?.invoices_generated ?? 0} invoices`); setShowBilling(false) }
+    onSuccess: (res: any) => {
+      toast.success(`Generated ${res.data.data?.invoices_generated ?? 0} invoices`)
+      setShowBilling(false)
+      refetchBilling()
+    },
+    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
+  })
+  const runCurrentBilling = useMutation({
+    mutationFn: () => pallaiAPI.runCurrentBilling(),
+    onSuccess: (res: any) => {
+      const d = res.data.data
+      toast.success(`${d.invoices_generated} invoice(s) generated${d.skipped_existing ? ` · ${d.skipped_existing} skipped` : ''}`)
+      refetchBilling()
+    },
+    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
+  })
+  const markOverdue = useMutation({
+    mutationFn: () => pallaiAPI.markOverdue(),
+    onSuccess: (res: any) => {
+      toast.success(`Marked ${res.data.data.marked_overdue} invoice(s) as overdue`)
+      refetchBilling()
+    },
+    onError: (e: any) => toast.error(e.response?.data?.detail || 'Failed'),
   })
   const sendBilling = useMutation({
     mutationFn: (data: object) => pallaiAPI.sendBillingNotifications(data),
@@ -194,34 +222,126 @@ export default function PallaiPage() {
 
       {/* Billing Tab */}
       {activeTab === 'Billing' && (
-        <div className="space-y-4">
-          <div className="card p-6">
-            <h3 className="font-semibold text-gray-900 mb-2">Recurring Billing</h3>
-            <p className="text-sm text-gray-500 mb-4">Generate monthly invoices for all active Pallai subscriptions. Invoices auto-generate on the 1st of each month.</p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-700 mb-4">
-              Active subscriptions: <strong>{summary?.active_subscriptions ?? 0}</strong> ·
-              Monthly revenue target: <strong>PKR {Number(summary?.monthly_revenue ?? 0).toLocaleString()}</strong>
+        <div className="space-y-6">
+          {/* Status Cards */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="card p-4 text-center">
+              <p className="text-2xl font-bold text-green-700">{billingStatus?.active_subscriptions ?? summary?.active_subscriptions ?? '—'}</p>
+              <p className="text-xs text-gray-500 mt-1">Active Subscriptions</p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                <div className="text-xs text-gray-500 mb-1">Auto-Generation Schedule</div>
-                <div className="font-medium text-gray-800">1st of every month</div>
-                <div className="text-xs text-gray-400 mt-1">Generates for all active subscriptions</div>
-              </div>
-              <button className="border-2 border-dashed border-green-300 rounded-lg p-4 text-center hover:border-green-500 hover:bg-green-50 transition-colors"
-                onClick={() => setShowBilling(true)}>
-                <div className="text-2xl mb-1">📄</div>
-                <div className="font-medium text-green-700">Generate Invoices</div>
-                <div className="text-xs text-gray-500">Manually generate for a month</div>
+            <div className={`card p-4 text-center ${billingStatus?.current_month_run ? 'border-green-300' : 'border-orange-300'}`}>
+              <p className={`text-2xl font-bold ${billingStatus?.current_month_run ? 'text-green-700' : 'text-orange-500'}`}>
+                {billingStatus?.current_month_run ? '✓' : '—'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                {billingStatus?.current_month ? `${billingStatus.current_month} Billing` : 'Current Month'}
+              </p>
+              <p className="text-xs font-medium mt-0.5" style={{ color: billingStatus?.current_month_run ? '#16a34a' : '#d97706' }}>
+                {billingStatus?.current_month_run
+                  ? `${billingStatus.current_month_invoices} invoice(s) generated`
+                  : 'Not yet run'}
+              </p>
+            </div>
+            <div className="card p-4 text-center">
+              <p className="text-2xl font-bold text-blue-700">PKR {Number(billingStatus?.current_month_total ?? 0).toLocaleString()}</p>
+              <p className="text-xs text-gray-500 mt-1">Current Month Total</p>
+            </div>
+            <div className={`card p-4 text-center ${billingStatus?.overdue_count > 0 ? 'border-red-300' : ''}`}>
+              <p className={`text-2xl font-bold ${billingStatus?.overdue_count > 0 ? 'text-red-600' : 'text-gray-400'}`}>
+                {billingStatus?.overdue_count ?? 0}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Overdue Invoices</p>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="card p-6">
+            <h3 className="font-semibold text-gray-900 mb-4">Billing Actions</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Run Current Month */}
+              <button
+                onClick={() => { if (confirm(`Run billing for ${billingStatus?.current_month ?? 'current month'}? This will generate invoices for all active subscriptions.`)) runCurrentBilling.mutate() }}
+                disabled={runCurrentBilling.isPending}
+                className="border-2 rounded-xl p-4 text-center transition-colors hover:bg-green-50"
+                style={{ borderColor: billingStatus?.current_month_run ? '#86efac' : '#16a34a' }}
+              >
+                <div className="text-2xl mb-1">{billingStatus?.current_month_run ? '🔄' : '▶️'}</div>
+                <div className="font-medium text-green-700 text-sm">
+                  {runCurrentBilling.isPending ? 'Running...' : billingStatus?.current_month_run ? 'Re-run Current Month' : 'Run Current Month'}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">Auto-detects {billingStatus?.current_month}</div>
               </button>
-              <button className="border-2 border-dashed border-blue-300 rounded-lg p-4 text-center hover:border-blue-500 hover:bg-blue-50 transition-colors"
-                onClick={() => { setSendResult(null); setShowSend(true) }}>
+
+              {/* Mark Overdue */}
+              <button
+                onClick={() => { if (confirm('Mark all past-due subscription invoices as OVERDUE?')) markOverdue.mutate() }}
+                disabled={markOverdue.isPending || !billingStatus?.overdue_count}
+                className="border-2 border-red-200 rounded-xl p-4 text-center transition-colors hover:bg-red-50 disabled:opacity-50"
+              >
+                <div className="text-2xl mb-1">⚠️</div>
+                <div className="font-medium text-red-600 text-sm">
+                  {markOverdue.isPending ? 'Marking...' : 'Mark Overdue'}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">{billingStatus?.overdue_count ?? 0} eligible invoices</div>
+              </button>
+
+              {/* Manual Generate */}
+              <button
+                onClick={() => setShowBilling(true)}
+                className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center transition-colors hover:border-gray-400 hover:bg-gray-50"
+              >
+                <div className="text-2xl mb-1">📄</div>
+                <div className="font-medium text-gray-700 text-sm">Generate for Month</div>
+                <div className="text-xs text-gray-400 mt-1">Pick a specific month</div>
+              </button>
+
+              {/* Send to Customers */}
+              <button
+                onClick={() => { setSendResult(null); setShowSend(true) }}
+                className="border-2 border-dashed border-blue-300 rounded-xl p-4 text-center transition-colors hover:border-blue-500 hover:bg-blue-50"
+              >
                 <div className="text-2xl mb-1">📬</div>
-                <div className="font-medium text-blue-700">Send to Customers</div>
-                <div className="text-xs text-gray-500">Send via WhatsApp &amp; Email</div>
+                <div className="font-medium text-blue-700 text-sm">Send to Customers</div>
+                <div className="text-xs text-gray-400 mt-1">Via WhatsApp &amp; Email</div>
               </button>
             </div>
           </div>
+
+          {/* Billing History */}
+          {billingStatus?.history?.length > 0 && (
+            <div className="card overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-900">Billing History (Last 6 Months)</h3>
+              </div>
+              <table className="w-full">
+                <thead className="table-header">
+                  <tr>
+                    {['Month', 'Invoices Generated', 'Total Amount', 'Status'].map(h => (
+                      <th key={h} className="text-left px-4 py-3 text-xs">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {billingStatus.history.map((row: any) => (
+                    <tr key={row.month} className={`table-row ${row.is_current ? 'bg-green-50' : ''}`}>
+                      <td className="table-cell font-mono font-semibold text-gray-800">
+                        {row.month} {row.is_current && <span className="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">current</span>}
+                      </td>
+                      <td className="table-cell text-gray-700">{row.invoices_generated}</td>
+                      <td className="table-cell font-medium text-gray-900">
+                        {row.total_amount > 0 ? `PKR ${Number(row.total_amount).toLocaleString()}` : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="table-cell">
+                        {row.invoices_generated > 0
+                          ? <span className="badge-active">Generated</span>
+                          : <span className="text-xs text-gray-400">Not run</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

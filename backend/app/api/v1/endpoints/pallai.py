@@ -411,6 +411,168 @@ def generate_monthly_invoices(
     }}
 
 
+@billing_router.get("/billing/status")
+def get_billing_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["super_admin", "owner", "accountant"])),
+):
+    """
+    Returns billing automation status:
+    - Current month: run or not, invoice count, total amount
+    - Last 6 months history
+    - Overdue invoice count
+    """
+    org_id = current_user.organization_id
+    today = date.today()
+    current_month_str = today.strftime("%Y-%m")
+    current_first = date(today.year, today.month, 1)
+
+    # Active subscriptions
+    active_subs = db.query(PallaiSubscription).filter(
+        PallaiSubscription.organization_id == org_id,
+        PallaiSubscription.is_active == True,
+    ).count()
+
+    # Current month billing status
+    current_invoices = db.query(Invoice).filter(
+        Invoice.organization_id == org_id,
+        Invoice.subscription_id.isnot(None),
+        Invoice.issue_date == current_first,
+    ).all()
+    current_total = sum(float(i.total_amount or 0) for i in current_invoices)
+
+    # Overdue count (past due_date, not paid/cancelled, has subscription)
+    overdue_count = db.query(Invoice).filter(
+        Invoice.organization_id == org_id,
+        Invoice.subscription_id.isnot(None),
+        Invoice.due_date < today,
+        Invoice.status.notin_([InvoiceStatus.PAID, InvoiceStatus.CANCELLED]),
+    ).count()
+
+    # Last 6 months history
+    history = []
+    for i in range(5, -1, -1):
+        # Walk back i months from current
+        m = today.month - i
+        y = today.year
+        while m <= 0:
+            m += 12
+            y -= 1
+        first_day = date(y, m, 1)
+        month_str = first_day.strftime("%Y-%m")
+        rows = db.query(Invoice).filter(
+            Invoice.organization_id == org_id,
+            Invoice.subscription_id.isnot(None),
+            Invoice.issue_date == first_day,
+        ).all()
+        history.append({
+            "month": month_str,
+            "invoices_generated": len(rows),
+            "total_amount": sum(float(r.total_amount or 0) for r in rows),
+            "is_current": month_str == current_month_str,
+        })
+
+    return {"success": True, "data": {
+        "active_subscriptions": active_subs,
+        "current_month": current_month_str,
+        "current_month_invoices": len(current_invoices),
+        "current_month_total": current_total,
+        "current_month_run": len(current_invoices) > 0,
+        "overdue_count": overdue_count,
+        "history": history,
+    }}
+
+
+@billing_router.post("/billing/run-current")
+def run_current_month_billing(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["super_admin", "owner", "accountant"])),
+):
+    """Auto-detect current month and generate invoices for all active subscriptions."""
+    org_id = current_user.organization_id
+    today = date.today()
+    billing_month = today.strftime("%Y-%m")
+    first_day = date(today.year, today.month, 1)
+    last_day = date(today.year, today.month, calendar.monthrange(today.year, today.month)[1])
+
+    subscriptions = db.query(PallaiSubscription).filter(
+        PallaiSubscription.organization_id == org_id,
+        PallaiSubscription.is_active == True,
+    ).all()
+
+    generated_count = 0
+    skipped_count = 0
+    for subscription in subscriptions:
+        existing = db.query(Invoice).filter(
+            Invoice.subscription_id == subscription.id,
+            Invoice.issue_date == first_day,
+        ).first()
+        if existing:
+            skipped_count += 1
+            continue
+
+        monthly_fee = subscription.monthly_fee or Decimal("0.00")
+        animal_name = subscription.animal.name if subscription.animal else "Unknown Animal"
+        package_name = subscription.package.name if subscription.package else "Unknown Package"
+        customer_name = subscription.customer.full_name if subscription.customer else "Unknown Customer"
+        invoice_number = f"PAL-{billing_month}-{subscription.id[:6].upper()}"
+
+        invoice = Invoice(
+            id=str(uuid_lib.uuid4()),
+            organization_id=org_id,
+            invoice_number=invoice_number,
+            customer_name=customer_name,
+            customer_id=subscription.customer_id,
+            issue_date=first_day,
+            due_date=last_day,
+            subtotal=monthly_fee,
+            tax_amount=Decimal("0.00"),
+            total_amount=monthly_fee,
+            paid_amount=Decimal("0.00"),
+            status=InvoiceStatus.DRAFT,
+            subscription_id=subscription.id,
+            created_by=current_user.id,
+        )
+        db.add(invoice)
+        db.flush()
+        line_item = InvoiceLineItem(
+            id=str(uuid_lib.uuid4()),
+            invoice_id=invoice.id,
+            description=f"Pallai Subscription - {package_name} - {animal_name}",
+            quantity=Decimal("1"),
+            unit_price=monthly_fee,
+            total=monthly_fee,
+        )
+        db.add(line_item)
+        generated_count += 1
+
+    db.commit()
+    return {"success": True, "data": {
+        "billing_month": billing_month,
+        "invoices_generated": generated_count,
+        "skipped_existing": skipped_count,
+        "message": f"Generated {generated_count} invoice(s) for {billing_month} ({skipped_count} skipped — already existed)",
+    }}
+
+
+@billing_router.post("/billing/mark-overdue")
+def mark_overdue_invoices(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles(["super_admin", "owner", "accountant"])),
+):
+    """Mark all past-due Pallai subscription invoices as OVERDUE."""
+    org_id = current_user.organization_id
+    today = date.today()
+    updated = db.query(Invoice).filter(
+        Invoice.organization_id == org_id,
+        Invoice.subscription_id.isnot(None),
+        Invoice.due_date < today,
+        Invoice.status.in_([InvoiceStatus.DRAFT, InvoiceStatus.SENT]),
+    ).update({"status": InvoiceStatus.OVERDUE}, synchronize_session=False)
+    db.commit()
+    return {"success": True, "data": {"marked_overdue": updated}}
+
+
 # ─────────────────────────────────────────────
 # CUSTOMER PORTAL
 # ─────────────────────────────────────────────

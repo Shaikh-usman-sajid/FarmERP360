@@ -206,6 +206,9 @@ export const pallaiAPI = {
   updateSubscription: (id: string, data: object) => api.put(`/pallai-subscriptions/${id}`, data),
   // Billing
   generateBilling: (data: object) => api.post('/pallai/billing/generate', data),
+  runCurrentBilling: () => api.post('/pallai/billing/run-current'),
+  getBillingStatus: () => api.get('/pallai/billing/status'),
+  markOverdue: () => api.post('/pallai/billing/mark-overdue'),
   sendBillingNotifications: (data: object) => api.post('/admin/pallai/billing/send', data),
   // Portal (pallai_customer role)
   portalMe: () => api.get('/pallai/portal/me'),
