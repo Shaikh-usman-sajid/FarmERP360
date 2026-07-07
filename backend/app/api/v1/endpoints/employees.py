@@ -87,6 +87,24 @@ def update_employee(emp_id: str, payload: dict, db: Session = Depends(get_db), c
     e = db.query(Employee).filter(Employee.id == emp_id, Employee.organization_id == get_org(current_user)).first()
     if not e:
         raise HTTPException(status_code=404, detail="Not found")
+
+    # If salary is changing, record it in history to avoid silent overwrites
+    new_salary = payload.get("monthly_salary")
+    if new_salary is not None:
+        from decimal import Decimal
+        new_salary_dec = Decimal(str(new_salary))
+        if e.monthly_salary != new_salary_dec:
+            hist = EmployeeSalaryHistory(
+                organization_id=get_org(current_user),
+                employee_id=emp_id,
+                salary_amount=new_salary_dec,
+                previous_salary=e.monthly_salary,
+                effective_date=date.today(),
+                change_reason="Direct Update",
+                created_by=current_user.id,
+            )
+            db.add(hist)
+
     for k, v in payload.items():
         if hasattr(e, k) and k not in ("id", "organization_id"):
             setattr(e, k, v)

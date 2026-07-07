@@ -14,7 +14,7 @@ const DEPARTMENTS = ['Operations', 'Dairy', 'Health', 'Agriculture', 'Transport'
 const CHANGE_REASONS = ['Initial Appointment', 'Annual Raise', 'Promotion', 'Performance Bonus', 'Market Adjustment', 'Other']
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-const emptyEmpForm = { employee_code: '', full_name: '', cnic: '', phone: '', address: '', designation: '', department: '', join_date: '', monthly_salary: '' }
+const emptyEmpForm = { employee_code: '', full_name: '', cnic: '', phone: '', address: '', designation: '', department: '', join_date: '' }
 const emptySalaryForm = { salary_amount: '', effective_date: '', change_reason: 'Annual Raise', notes: '' }
 const emptyPayrollForm = { month: new Date().getMonth() + 1, year: new Date().getFullYear(), notes: '' }
 
@@ -54,6 +54,7 @@ export default function EmployeesPage() {
   const [showEmpModal, setShowEmpModal] = useState(false)
   const [editingEmp, setEditingEmp] = useState<any>(null)
   const [empForm, setEmpForm] = useState(emptyEmpForm)
+  const [addSalaryOnCreate, setAddSalaryOnCreate] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
@@ -166,16 +167,17 @@ export default function EmployeesPage() {
   // ─── Helpers ──────────────────────────────────────────────────
   function closeEmpModal() {
     setShowEmpModal(false); setEditingEmp(null); setEmpForm(emptyEmpForm)
-    setPhotoFile(null); setPhotoPreview(null)
+    setAddSalaryOnCreate(''); setPhotoFile(null); setPhotoPreview(null)
   }
 
   function openAddEmp() {
-    setEditingEmp(null); setEmpForm(emptyEmpForm); setPhotoFile(null); setPhotoPreview(null); setShowEmpModal(true)
+    setEditingEmp(null); setEmpForm(emptyEmpForm); setAddSalaryOnCreate('')
+    setPhotoFile(null); setPhotoPreview(null); setShowEmpModal(true)
   }
 
   function openEditEmp(e: any) {
     setEditingEmp(e)
-    setEmpForm({ employee_code: e.employee_code || '', full_name: e.full_name, cnic: e.cnic || '', phone: e.phone || '', address: e.address || '', designation: e.designation || '', department: e.department || '', join_date: e.join_date || '', monthly_salary: e.monthly_salary ? String(e.monthly_salary) : '' })
+    setEmpForm({ employee_code: e.employee_code || '', full_name: e.full_name, cnic: e.cnic || '', phone: e.phone || '', address: e.address || '', designation: e.designation || '', department: e.department || '', join_date: e.join_date || '' })
     setPhotoFile(null); setPhotoPreview(e.photo_url ?? null); setShowEmpModal(true)
   }
 
@@ -194,9 +196,10 @@ export default function EmployeesPage() {
     e.preventDefault()
     if (!editingEmp && !photoFile) { toast.error('Employee photo is required'); return }
     const d: any = { ...empForm }
-    if (d.monthly_salary) d.monthly_salary = parseFloat(d.monthly_salary); else delete d.monthly_salary
     if (!d.join_date) delete d.join_date
     if (!d.address) delete d.address
+    // Monthly salary on create only — salary changes go through Add Raise
+    if (!editingEmp && addSalaryOnCreate) d.monthly_salary = parseFloat(addSalaryOnCreate)
     if (editingEmp) updateEmpMutation.mutate({ id: editingEmp.id, data: d })
     else createEmpMutation.mutate(d)
   }
@@ -719,8 +722,20 @@ export default function EmployeesPage() {
                   <input type="date" className="input" value={empForm.join_date} onChange={e => setEmpForm({ ...empForm, join_date: e.target.value })} />
                 </div>
                 <div>
-                  <label className="label">Monthly Salary (PKR)</label>
-                  <input type="number" className="input" value={empForm.monthly_salary} onChange={e => setEmpForm({ ...empForm, monthly_salary: e.target.value })} placeholder="0" />
+                  {editingEmp ? (
+                    <>
+                      <label className="label">Monthly Salary (PKR)</label>
+                      <div className="input bg-gray-50 text-gray-700 cursor-default select-none">
+                        {editingEmp.monthly_salary ? pkr(editingEmp.monthly_salary) : 'Not set'}
+                      </div>
+                      <p className="text-xs text-amber-600 mt-1">Use <strong>Add Raise</strong> to change salary — keeps full history.</p>
+                    </>
+                  ) : (
+                    <>
+                      <label className="label">Starting Salary (PKR)</label>
+                      <input type="number" className="input" value={addSalaryOnCreate} onChange={e => setAddSalaryOnCreate(e.target.value)} placeholder="0" />
+                    </>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <label className="label">Address</label>
